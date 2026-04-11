@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { getSupabase } from "@/lib/db";
 import { formatPace, formatDuration, getWeekStart, workoutColor, riskLevel } from "@/lib/utils";
+import { FeedbackModal } from "@/components/dashboard/FeedbackModal";
 import type { WorkoutType } from "@/types";
 
 // ---- Types for dashboard data ----
@@ -36,11 +37,13 @@ interface DashboardState {
   coachNote: string | null;
   // Recent runs
   recentRuns: {
+    id: string;
     activity_date: string;
     distance_miles: number | null;
     avg_pace_per_mile: number | null;
     avg_hr: number | null;
     duration_seconds: number | null;
+    has_feedback: boolean;
   }[];
 }
 
@@ -65,6 +68,12 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardState>(INITIAL_STATE);
   const [syncing, setSyncing] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [feedbackActivity, setFeedbackActivity] = useState<{
+    id: string;
+    activity_date: string;
+    distance_miles: number | null;
+    avg_pace_per_mile: number | null;
+  } | null>(null);
 
   const loadDashboard = useCallback(async () => {
     const weekStart = getWeekStart(new Date());
@@ -82,7 +91,7 @@ export default function DashboardPage() {
       getSupabase().from("athlete_profile").select("*").limit(1).single(),
       getSupabase()
         .from("activities")
-        .select("activity_date, distance_miles, avg_pace_per_mile, avg_hr, duration_seconds")
+        .select("id, activity_date, distance_miles, avg_pace_per_mile, avg_hr, duration_seconds")
         .gte("activity_date", weekStart)
         .eq("activity_type", "run")
         .order("activity_date", { ascending: false }),
@@ -114,7 +123,8 @@ export default function DashboardPage() {
     ]);
 
     const athlete = athleteRes.data;
-    const activities: {
+    const rawActivities: {
+      id: string;
       activity_date: string;
       distance_miles: number | null;
       avg_pace_per_mile: number | null;
@@ -122,6 +132,23 @@ export default function DashboardPage() {
       duration_seconds: number | null;
     }[] = activitiesRes.data ?? [];
     const todayW = todayWorkoutRes.data;
+
+    // Check which activities have feedback
+    const activityIds = rawActivities.map((a) => a.id);
+    let feedbackIds = new Set<string>();
+    if (activityIds.length > 0) {
+      const { data: feedbackData } = await getSupabase()
+        .from("run_feedback")
+        .select("activity_id")
+        .in("activity_id", activityIds);
+      feedbackIds = new Set(
+        (feedbackData ?? []).map((f: { activity_id: string }) => f.activity_id)
+      );
+    }
+    const activities = rawActivities.map((a) => ({
+      ...a,
+      has_feedback: feedbackIds.has(a.id),
+    }));
 
     const currentMileage = activities.reduce(
       (sum: number, a) => sum + (a.distance_miles ?? 0),
@@ -301,9 +328,24 @@ export default function DashboardPage() {
           <CoachNoteCard note={data.coachNote} />
         </div>
         <div style={{ gridColumn: "span 2" }}>
-          <RecentRuns runs={data.recentRuns} />
+          <RecentRuns
+            runs={data.recentRuns}
+            onAddFeedback={(run) => setFeedbackActivity(run)}
+          />
         </div>
       </div>
+
+      {/* Feedback Modal */}
+      {feedbackActivity && (
+        <FeedbackModal
+          activity={feedbackActivity}
+          onClose={() => setFeedbackActivity(null)}
+          onSaved={() => {
+            setFeedbackActivity(null);
+            loadDashboard();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -767,8 +809,15 @@ function CoachNoteCard({ note }: { note: string | null }) {
 
 function RecentRuns({
   runs,
+  onAddFeedback,
 }: {
   runs: DashboardState["recentRuns"];
+  onAddFeedback: (run: {
+    id: string;
+    activity_date: string;
+    distance_miles: number | null;
+    avg_pace_per_mile: number | null;
+  }) => void;
 }) {
   return (
     <div
@@ -793,17 +842,61 @@ function RecentRuns({
               className="flex items-center justify-between py-2 border-b last:border-0"
               style={{ borderColor: "var(--border)" }}
             >
-              <div>
-                <div className="text-sm font-medium" style={{ color: "var(--text)" }}>
-                  {formatRunDate(run.activity_date)}
-                </div>
-                {run.duration_seconds && (
-                  <div
-                    className="text-xs mt-0.5"
-                    style={{ color: "var(--text-dim)" }}
-                  >
-                    {formatDuration(run.duration_seconds)}
+              <div className="flex items-center gap-2">
+                <div>
+                  <div className="text-sm font-medium" style={{ color: "var(--text)" }}>
+                    {formatRunDate(run.activity_date)}
                   </div>
+                  {run.duration_seconds && (
+                    <div
+                      className="text-xs mt-0.5"
+                      style={{ color: "var(--text-dim)" }}
+                    >
+                      {formatDuration(run.duration_seconds)}
+                    </div>
+                  )}
+                </div>
+                {!run.has_feedback && (
+                  <button
+                    onClick={() => onAddFeedback(run)}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border-0 cursor-pointer transition-colors"
+                    style={{
+                      background: "var(--amber-soft)",
+                      color: "var(--amber)",
+                    }}
+                  >
+                    <span
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{ background: "var(--amber)" }}
+                    />
+                    Add feedback
+                  </button>
+                )}
+                {run.has_feedback && (
+                  <span
+                    className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium"
+                    style={{
+                      background: "var(--green-soft)",
+                      color: "var(--green)",
+                    }}
+                  >
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 10 10"
+                      fill="none"
+                      className="mr-1"
+                    >
+                      <path
+                        d="M2 5L4 7L8 3"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    Logged
+                  </span>
                 )}
               </div>
               <div className="flex items-center gap-5 text-right">
