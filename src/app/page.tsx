@@ -19,6 +19,8 @@ interface DashboardState {
   runsThisWeek: number;
   avgPace: number | null;
   injuryRiskScore: number;
+  riskFactors: string[];
+  riskRecommendation: string;
   // Today's workout
   todayWorkout: {
     workout_type: WorkoutType;
@@ -56,6 +58,8 @@ const INITIAL_STATE: DashboardState = {
   runsThisWeek: 0,
   avgPace: null,
   injuryRiskScore: 0,
+  riskFactors: [],
+  riskRecommendation: "",
   todayWorkout: null,
   marathonTarget: "2:40",
   halfTarget: "1:15",
@@ -85,7 +89,7 @@ export default function DashboardPage() {
       activitiesRes,
       todayWorkoutRes,
       planRes,
-      summaryRes,
+      riskRes,
       learningRes,
     ] = await Promise.all([
       getSupabase().from("athlete_profile").select("*").limit(1).single(),
@@ -108,12 +112,7 @@ export default function DashboardPage() {
         .order("week_start", { ascending: false })
         .limit(1)
         .single(),
-      getSupabase()
-        .from("weekly_summaries")
-        .select("injury_risk_score")
-        .order("week_start", { ascending: false })
-        .limit(1)
-        .single(),
+      fetch("/api/coach/risk").then((r) => r.json()).catch(() => ({ score: 0, factors: [], recommendation: "" })),
       getSupabase()
         .from("coach_learnings")
         .select("insight")
@@ -171,7 +170,9 @@ export default function DashboardPage() {
       targetMileage: planRes.data?.target_mileage ?? 0,
       runsThisWeek: activities.length,
       avgPace,
-      injuryRiskScore: summaryRes.data?.injury_risk_score ?? 20,
+      injuryRiskScore: riskRes.score ?? 0,
+      riskFactors: riskRes.factors ?? [],
+      riskRecommendation: riskRes.recommendation ?? "",
       todayWorkout: todayW
         ? {
             ...todayW,
@@ -308,7 +309,11 @@ export default function DashboardPage() {
           accent="var(--teal)"
           accentBg="var(--teal-soft)"
         />
-        <RiskGauge score={data.injuryRiskScore} />
+        <RiskGauge
+          score={data.injuryRiskScore}
+          factors={data.riskFactors}
+          recommendation={data.riskRecommendation}
+        />
 
         {/* Row 2 */}
         <div style={{ gridColumn: "span 2" }}>
@@ -454,7 +459,16 @@ function StatCard({
 
 // ---- Component: RiskGauge ----
 
-function RiskGauge({ score }: { score: number }) {
+function RiskGauge({
+  score,
+  factors,
+  recommendation,
+}: {
+  score: number;
+  factors: string[];
+  recommendation: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
   const risk = riskLevel(score);
   // Semicircle gauge: angle from -90 to 90 degrees
   const angle = -90 + (score / 100) * 180;
@@ -545,6 +559,59 @@ function RiskGauge({ score }: { score: number }) {
           </span>
         </div>
       </div>
+
+      {/* Expandable factors */}
+      {factors.length > 0 && (
+        <div className="mt-3">
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="flex items-center gap-1 text-[10px] font-medium border-0 cursor-pointer p-0"
+            style={{ background: "transparent", color: "var(--text-dim)" }}
+          >
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 10 10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              style={{
+                transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
+                transition: "transform 0.15s",
+              }}
+            >
+              <path d="M3 1.5L7 5L3 8.5" />
+            </svg>
+            {factors.length} factor{factors.length !== 1 ? "s" : ""}
+          </button>
+          {expanded && (
+            <div className="mt-2 space-y-1.5">
+              {factors.map((f, i) => (
+                <div
+                  key={i}
+                  className="text-[10px] leading-tight"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  &bull; {f}
+                </div>
+              ))}
+              {recommendation && (
+                <div
+                  className="text-[10px] leading-tight mt-2 pt-2 border-t"
+                  style={{
+                    color: score > 70 ? "var(--red)" : "var(--text-muted)",
+                    borderColor: "var(--border)",
+                    fontStyle: "italic",
+                  }}
+                >
+                  {recommendation}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
