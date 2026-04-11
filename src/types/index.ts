@@ -28,7 +28,10 @@ export type LearningCategory =
   | "injury_pattern"
   | "optimal_volume"
   | "recovery_needs"
-  | "race_readiness";
+  | "race_readiness"
+  | "pacing_tendency"
+  | "sleep_performance"
+  | "soreness_pattern";
 
 // --- Athlete ---
 

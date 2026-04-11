@@ -37,6 +37,19 @@ interface DashboardState {
   mileageTarget: number;
   // Coach note
   coachNote: string | null;
+  // Phase transition
+  phaseTransition: {
+    ready: boolean;
+    suggestedPhase: string | null;
+    reasons: string[];
+    blockers: string[];
+  } | null;
+  // Coach insights (top learnings)
+  coachInsights: {
+    category: string;
+    insight: string;
+    confidence: number;
+  }[];
   // Weekly review
   weeklyReview: {
     analysis: string;
@@ -72,6 +85,8 @@ const INITIAL_STATE: DashboardState = {
   halfTarget: "1:15",
   mileageTarget: 65,
   coachNote: null,
+  phaseTransition: null,
+  coachInsights: [],
   weeklyReview: null,
   recentRuns: [],
 };
@@ -101,6 +116,8 @@ export default function DashboardPage() {
       riskRes,
       learningRes,
       summaryRes,
+      insightsRes,
+      phaseRes,
     ] = await Promise.all([
       getSupabase().from("athlete_profile").select("*").limit(1).single(),
       getSupabase()
@@ -135,6 +152,12 @@ export default function DashboardPage() {
         .order("week_start", { ascending: false })
         .limit(1)
         .single(),
+      getSupabase()
+        .from("coach_learnings")
+        .select("category, insight, confidence")
+        .order("confidence", { ascending: false })
+        .limit(5),
+      fetch("/api/coach/phase").then((r) => r.json()).catch(() => null),
     ]);
 
     const athlete = athleteRes.data;
@@ -199,6 +222,21 @@ export default function DashboardPage() {
       halfTarget: athlete?.goals?.half_target ?? "1:15",
       mileageTarget: athlete?.goals?.weekly_mileage_target ?? 65,
       coachNote: learningRes.data?.insight ?? null,
+      phaseTransition: phaseRes?.ready != null
+        ? {
+            ready: phaseRes.ready,
+            suggestedPhase: phaseRes.suggestedPhase ?? null,
+            reasons: phaseRes.reasons ?? [],
+            blockers: phaseRes.blockers ?? [],
+          }
+        : null,
+      coachInsights: (insightsRes.data ?? []).map(
+        (l: { category: string; insight: string; confidence: number }) => ({
+          category: l.category,
+          insight: l.insight,
+          confidence: l.confidence,
+        })
+      ),
       weeklyReview: summaryRes.data
         ? {
             analysis: summaryRes.data.coach_analysis ?? "",
@@ -311,6 +349,28 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Phase Transition Banner */}
+      {data.phaseTransition?.ready && data.phaseTransition.suggestedPhase && (
+        <PhaseTransitionBanner
+          currentPhase={data.currentPhase}
+          suggestedPhase={data.phaseTransition.suggestedPhase}
+          reasons={data.phaseTransition.reasons}
+          onAccept={async () => {
+            await fetch("/api/coach/phase", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ new_phase: data.phaseTransition!.suggestedPhase }),
+            });
+            await loadDashboard();
+          }}
+        />
+      )}
+
+      {/* Phase Blockers (subtle) */}
+      {data.phaseTransition && !data.phaseTransition.ready && data.phaseTransition.blockers.length > 0 && (
+        <PhaseBlockersInfo blockers={data.phaseTransition.blockers} />
+      )}
+
       {/* Grid */}
       <div
         className="grid gap-5"
@@ -380,6 +440,11 @@ export default function DashboardPage() {
           }
         }}
       />
+
+      {/* Coach Insights */}
+      {data.coachInsights.length > 0 && (
+        <CoachInsightsSection insights={data.coachInsights} />
+      )}
 
       {/* Feedback Modal */}
       {feedbackActivity && (
@@ -1051,6 +1116,214 @@ function RecentRuns({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ---- Component: PhaseTransitionBanner ----
+
+function PhaseTransitionBanner({
+  currentPhase,
+  suggestedPhase,
+  reasons,
+  onAccept,
+}: {
+  currentPhase: string;
+  suggestedPhase: string;
+  reasons: string[];
+  onAccept: () => void;
+}) {
+  const [accepting, setAccepting] = useState(false);
+
+  return (
+    <div
+      className="rounded-xl px-5 py-4 mb-6 border"
+      style={{
+        background: "var(--amber-soft)",
+        borderColor: "var(--amber)",
+      }}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <div
+            className="text-sm font-semibold mb-1"
+            style={{ color: "var(--amber)" }}
+          >
+            Phase Transition Ready
+          </div>
+          <div className="text-sm mb-3" style={{ color: "var(--text)" }}>
+            Coach suggests transitioning from{" "}
+            <strong>{currentPhase.replace("_", " ")}</strong> to{" "}
+            <strong>{suggestedPhase.replace("_", " ")}</strong>
+          </div>
+          <ul className="m-0 pl-4 space-y-0.5">
+            {reasons.map((r, i) => (
+              <li
+                key={i}
+                className="text-xs"
+                style={{ color: "var(--text-muted)" }}
+              >
+                {r}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <button
+          onClick={async () => {
+            setAccepting(true);
+            await onAccept();
+            setAccepting(false);
+          }}
+          disabled={accepting}
+          className="flex-shrink-0 px-4 py-2 rounded-lg text-sm font-semibold border-0 cursor-pointer disabled:opacity-50"
+          style={{ background: "var(--amber)", color: "#0f1117" }}
+        >
+          {accepting ? "Transitioning..." : "Accept Transition"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---- Component: PhaseBlockersInfo ----
+
+function PhaseBlockersInfo({ blockers }: { blockers: string[] }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="mb-4">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-1.5 text-xs font-medium border-0 cursor-pointer p-0"
+        style={{ background: "transparent", color: "var(--text-dim)" }}
+      >
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        >
+          <circle cx="6" cy="6" r="5" />
+          <path d="M6 4v2.5M6 8h.01" />
+        </svg>
+        {blockers.length} item{blockers.length !== 1 ? "s" : ""} before next
+        phase transition
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          style={{
+            transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
+            transition: "transform 0.15s",
+          }}
+        >
+          <path d="M3 1.5L7 5L3 8.5" />
+        </svg>
+      </button>
+      {expanded && (
+        <ul
+          className="mt-2 pl-4 space-y-1 m-0"
+          style={{ listStyle: "none" }}
+        >
+          {blockers.map((b, i) => (
+            <li
+              key={i}
+              className="text-xs flex items-start gap-1.5"
+              style={{ color: "var(--text-dim)" }}
+            >
+              <span style={{ color: "var(--orange)" }}>&bull;</span>
+              {b}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ---- Component: CoachInsightsSection ----
+
+const CATEGORY_COLORS: Record<string, { color: string; bg: string }> = {
+  injury_pattern: { color: "var(--red)", bg: "var(--red-soft)" },
+  optimal_volume: { color: "var(--amber)", bg: "var(--amber-soft)" },
+  recovery_needs: { color: "var(--teal)", bg: "var(--teal-soft)" },
+  race_readiness: { color: "var(--green)", bg: "var(--green-soft)" },
+  pacing_tendency: { color: "var(--blue)", bg: "var(--blue-soft)" },
+  sleep_performance: { color: "var(--purple)", bg: "var(--purple-soft)" },
+  soreness_pattern: { color: "var(--orange)", bg: "var(--orange-soft)" },
+};
+
+function CoachInsightsSection({
+  insights,
+}: {
+  insights: DashboardState["coachInsights"];
+}) {
+  return (
+    <div
+      className="rounded-xl border p-6 mt-6"
+      style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}
+    >
+      <div
+        className="text-xs font-medium uppercase tracking-wider mb-4"
+        style={{ color: "var(--text-dim)" }}
+      >
+        Coach Insights
+      </div>
+      <div className="space-y-4">
+        {insights.map((insight, i) => {
+          const cat =
+            CATEGORY_COLORS[insight.category] ?? CATEGORY_COLORS.optimal_volume;
+          const pct = Math.round(insight.confidence * 100);
+
+          return (
+            <div key={i} className="flex gap-4">
+              {/* Confidence bar */}
+              <div className="flex flex-col items-center pt-1" style={{ width: 40 }}>
+                <div
+                  className="text-xs font-semibold"
+                  style={{ fontFamily: "var(--font-mono)", color: cat.color }}
+                >
+                  {pct}%
+                </div>
+                <div
+                  className="w-1.5 flex-1 rounded-full mt-1 overflow-hidden"
+                  style={{ background: "var(--bg-elevated)" }}
+                >
+                  <div
+                    className="w-full rounded-full transition-all"
+                    style={{
+                      height: `${pct}%`,
+                      background: cat.color,
+                    }}
+                  />
+                </div>
+              </div>
+              {/* Content */}
+              <div className="flex-1 min-w-0">
+                <span
+                  className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold uppercase mb-1.5"
+                  style={{ background: cat.bg, color: cat.color }}
+                >
+                  {insight.category.replace(/_/g, " ")}
+                </span>
+                <p
+                  className="text-sm leading-relaxed m-0"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  {insight.insight}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

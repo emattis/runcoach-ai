@@ -7,6 +7,7 @@ import {
   type AnalysisContext,
 } from "@/lib/coach";
 import { getWeekStart } from "@/lib/utils";
+import { analyzePatterns, type PatternInput } from "@/lib/pattern-detection";
 import type { Activity, TrainingPhase } from "@/types";
 
 /**
@@ -226,6 +227,69 @@ export async function POST() {
       });
     }
 
+    // 8. Run pattern detection (best-effort)
+    let patternsDetected = 0;
+    try {
+      // Pull broader data for pattern detection
+      const [allActivitiesRes, allFeedbackRes, allSummariesRes, prefRes] =
+        await Promise.all([
+          db.from("activities")
+            .select("activity_date, distance_miles, avg_pace_per_mile")
+            .gte("activity_date", fourWeeksAgo.toISOString().split("T")[0])
+            .eq("activity_type", "run")
+            .order("activity_date", { ascending: true }),
+          db.from("run_feedback")
+            .select("activity_id, feel_rating, soreness_level, soreness_areas, sleep_quality, sleep_hours, injury_flag, created_at")
+            .gte("created_at", fourWeeksAgo.toISOString())
+            .order("created_at", { ascending: true }),
+          db.from("weekly_summaries")
+            .select("week_start, total_mileage, avg_feel_rating, injury_risk_score")
+            .order("week_start", { ascending: true }),
+          db.from("athlete_profile")
+            .select("preferences")
+            .limit(1)
+            .single(),
+        ]);
+
+      const patternInput: PatternInput = {
+        activities: allActivitiesRes.data ?? [],
+        feedback: allFeedbackRes.data ?? [],
+        weeklySummaries: allSummariesRes.data ?? [],
+        athletePreferences: prefRes.data?.preferences ?? undefined,
+      };
+
+      const detected = analyzePatterns(patternInput);
+      patternsDetected = detected.length;
+
+      // Save new patterns
+      for (const pattern of detected) {
+        const { data: existingMatch } = await db
+          .from("coach_learnings")
+          .select("id, confidence")
+          .eq("category", pattern.category)
+          .limit(1)
+          .single();
+
+        if (existingMatch) {
+          await db.from("coach_learnings").update({
+            confidence: Math.min(0.98, existingMatch.confidence + 0.05),
+            insight: pattern.insight,
+            evidence: pattern.evidence,
+            updated_at: new Date().toISOString(),
+          }).eq("id", existingMatch.id);
+        } else {
+          await db.from("coach_learnings").insert({
+            category: pattern.category,
+            insight: pattern.insight,
+            confidence: pattern.confidence,
+            evidence: pattern.evidence,
+          });
+        }
+      }
+    } catch {
+      // Pattern detection is best-effort
+    }
+
     return NextResponse.json({
       week_start: weekStart,
       total_mileage: Math.round(actualMileage * 10) / 10,
@@ -235,6 +299,7 @@ export async function POST() {
       injury_risk_score: result.injuryRiskScore,
       recommendations: result.recommendations,
       new_learnings_count: result.newLearnings.length,
+      patterns_detected: patternsDetected,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

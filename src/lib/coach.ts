@@ -142,12 +142,7 @@ ATHLETE CONTEXT:
 - Schedule preferences: long run on ${ctx.preferences.preferred_long_run_day}, off days: ${ctx.preferences.off_days.join(", ")}, easy pace range: ${ctx.preferences.easy_pace_range}/mi
 
 PHASE-SPECIFIC RULES FOR ${ctx.currentPhase.toUpperCase().replace("_", " ")}:
-${ctx.currentPhase === "base_building" ? `- ALL runs at easy/conversational pace (${ctx.preferences.easy_pace_range}/mi)
-- ONE long run per week (25-30% of weekly mileage)
-- Strides (4-6 x 100m) after easy runs 2x per week — these are the ONLY non-easy efforts allowed
-- NO tempo, NO intervals, NO speed work
-- If this is a down week (every 4th week), reduce volume 20-25%` : `- Follow standard periodization for ${ctx.currentPhase} phase
-- Maintain 80/20 easy-to-hard ratio`}
+${getPhaseRules(ctx.currentPhase, ctx.preferences.easy_pace_range, isDownWeek)}
 - Never increase weekly mileage more than 10% from last week
 - If injury risk > 60, reduce planned volume by 10-15%
 - If injury risk > 85, prescribe a recovery week regardless of plan
@@ -241,6 +236,63 @@ Only include new_learnings if you genuinely observed something new or that updat
     recommendations: parsed.recommendations,
     newLearnings: parsed.new_learnings,
   };
+}
+
+// ---- Phase-specific rules ----
+
+function getPhaseRules(
+  phase: TrainingPhase,
+  easyPaceRange: string,
+  isDownWeek: boolean
+): string {
+  switch (phase) {
+    case "base_building":
+      return `- ALL runs at easy/conversational pace (${easyPaceRange}/mi)
+- ONE long run per week (25-30% of weekly mileage)
+- Strides (4-6 x 100m) after easy runs 2x per week — these are the ONLY non-easy efforts allowed
+- NO tempo, NO intervals, NO speed work
+- If this is a down week (every 4th week), reduce volume 20-25%${isDownWeek ? "\n- THIS IS A DOWN WEEK — reduce volume 20-25%" : ""}`;
+
+    case "build":
+      return `- Maintain 80/20 easy-to-hard ratio
+- ONE tempo run per week (20-30 min at lactate threshold pace, ~6:15-6:30/mi)
+- ONE interval or fartlek session per week (e.g. 6x800m or 4x1 mile with recovery jogs)
+- Long run can include marathon pace segments (last 2-4 miles at 6:05-6:10/mi)
+- ONE long run per week (25-30% of weekly mileage)
+- Remaining runs are easy/recovery pace (${easyPaceRange}/mi)
+- Strides 2x per week after easy runs
+- Down week every 4th week (reduce volume 20-25%)${isDownWeek ? "\n- THIS IS A DOWN WEEK — reduce volume 20-25%, keep one quality session but shorter" : ""}`;
+
+    case "peak":
+      return `- TWO quality sessions per week at race-specific intensities
+- Quality session 1: Race-pace workout (tempo at marathon pace or intervals at half-marathon pace)
+- Quality session 2: VO2max or speed session (shorter, sharper — 400m-1200m repeats)
+- Long run with significant race-pace component (6-10 miles at marathon pace)
+- MAINTAIN but DO NOT INCREASE weekly mileage — hold steady
+- Remaining runs easy/recovery (${easyPaceRange}/mi)
+- Down week every 3rd week${isDownWeek ? "\n- THIS IS A DOWN WEEK — one quality session only, reduced volume" : ""}`;
+
+    case "taper":
+      return `- REDUCE volume 20% per week over 2-3 weeks
+- Keep 1-2 SHORT intensity sessions to maintain sharpness (reduced duration, same pace)
+- Example: 4x400m instead of 8x400m, 15 min tempo instead of 30 min
+- Long run reduces significantly (10-12 mi → 8 mi → 5 mi)
+- Increase rest days
+- Focus on feeling fresh, NOT fitness gains — the work is done
+- Easy runs at ${easyPaceRange}/mi`;
+
+    case "recovery":
+      return `- Volume at 50% of peak mileage
+- ALL runs easy/conversational — NO workouts, NO tempo, NO intervals, NO strides
+- Focus on rest, sleep, nutrition, and soft tissue work
+- Include cross-training options (swimming, cycling) if desired
+- Easy runs at ${easyPaceRange}/mi or slower
+- Off days are encouraged — typically 3-4 runs per week maximum`;
+
+    default:
+      return `- Follow standard periodization
+- Maintain 80/20 easy-to-hard ratio`;
+  }
 }
 
 // ---- Coach learnings helpers ----
