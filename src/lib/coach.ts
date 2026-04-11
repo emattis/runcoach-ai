@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { createServiceClient } from "@/lib/db";
 import type {
   TrainingPhase,
@@ -7,12 +6,31 @@ import type {
   Activity,
 } from "@/types";
 
-// ---- Claude client ----
+// ---- Gemini API ----
 
-const MODEL = "claude-sonnet-4-20250514";
+const GEMINI_URL =
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
-function getClient(): Anthropic {
-  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+async function callGemini(systemPrompt: string, userPrompt: string): Promise<string> {
+  const url = `${GEMINI_URL}?key=${process.env.GEMINI_API_KEY}`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      generationConfig: { responseMimeType: "application/json" },
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Gemini API error (${res.status}): ${text}`);
+  }
+
+  const data = await res.json();
+  return data.candidates[0].content.parts[0].text;
 }
 
 // ---- System prompt ----
@@ -109,8 +127,6 @@ export interface AnalysisResult {
 export async function generateWeeklyPlan(
   ctx: PlanGenerationContext
 ): Promise<PlanResult> {
-  const client = getClient();
-
   const isDownWeek = ctx.weekNumber > 0 && ctx.weekNumber % 4 === 0;
 
   const userPrompt = `Generate this week's training plan.
@@ -136,7 +152,7 @@ ${ctx.currentPhase === "base_building" ? `- ALL runs at easy/conversational pace
 - If injury risk > 60, reduce planned volume by 10-15%
 - If injury risk > 85, prescribe a recovery week regardless of plan
 
-Respond with ONLY valid JSON in this exact format (no markdown, no code fences):
+Respond with valid JSON in this exact format:
 {
   "workouts": [
     {
@@ -154,15 +170,7 @@ Respond with ONLY valid JSON in this exact format (no markdown, no code fences):
 
 The workouts array must have exactly 7 entries (Monday through Sunday). Distances must sum to approximately ${ctx.targetMileage} miles.`;
 
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 2048,
-    system: COACH_SYSTEM_PROMPT,
-    messages: [{ role: "user", content: userPrompt }],
-  });
-
-  const text =
-    response.content[0].type === "text" ? response.content[0].text : "";
+  const text = await callGemini(COACH_SYSTEM_PROMPT, userPrompt);
 
   const parsed = JSON.parse(text) as {
     workouts: PlannedWorkoutData[];
@@ -180,8 +188,6 @@ The workouts array must have exactly 7 entries (Monday through Sunday). Distance
 export async function generateWeeklyAnalysis(
   ctx: AnalysisContext
 ): Promise<AnalysisResult> {
-  const client = getClient();
-
   const userPrompt = `Analyze this athlete's training week.
 
 WEEK DATA:
@@ -204,11 +210,11 @@ ${ctx.completedActivities.map((a) => `- ${a.activity_date}: ${a.distance_miles?.
 EXISTING COACH LEARNINGS:
 ${ctx.existingLearnings.length > 0 ? ctx.existingLearnings.join("\n") : "None yet"}
 
-Respond with ONLY valid JSON (no markdown, no code fences):
+Respond with valid JSON in this exact format:
 {
   "analysis": "2-4 paragraph weekly analysis covering what happened, what went well, concerns",
   "injury_risk_score": 0-100,
-  "recommendations": ["specific recommendation 1", "recommendation 2", ...],
+  "recommendations": ["specific recommendation 1", "recommendation 2"],
   "new_learnings": [
     {
       "category": "injury_pattern|optimal_volume|recovery_needs|race_readiness",
@@ -220,15 +226,7 @@ Respond with ONLY valid JSON (no markdown, no code fences):
 
 Only include new_learnings if you genuinely observed something new or that updates existing knowledge. It's fine to return an empty array. Be conservative with confidence scores.`;
 
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 2048,
-    system: COACH_SYSTEM_PROMPT,
-    messages: [{ role: "user", content: userPrompt }],
-  });
-
-  const text =
-    response.content[0].type === "text" ? response.content[0].text : "";
+  const text = await callGemini(COACH_SYSTEM_PROMPT, userPrompt);
 
   const parsed = JSON.parse(text) as {
     analysis: string;

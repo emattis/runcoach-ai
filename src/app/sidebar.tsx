@@ -1,7 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useThemeStore } from "@/lib/theme";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 const NAV_ITEMS = [
   {
@@ -63,6 +66,11 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const hydrate = useThemeStore((s) => s.hydrate);
+
+  useEffect(() => {
+    hydrate();
+  }, [hydrate]);
 
   return (
     <aside
@@ -125,18 +133,22 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Phase indicator at bottom */}
+      {/* Bottom section */}
       <div
-        className="px-5 py-4 text-xs border-t"
-        style={{ borderColor: "var(--border)", color: "var(--text-dim)" }}
+        className="px-5 py-4 border-t flex items-center justify-between"
+        style={{ borderColor: "var(--border)" }}
       >
-        <div className="flex items-center gap-2">
+        <div
+          className="flex items-center gap-2 text-xs"
+          style={{ color: "var(--text-dim)" }}
+        >
           <span
             className="w-2 h-2 rounded-full"
             style={{ background: "var(--teal)" }}
           />
           Base Building
         </div>
+        <ThemeToggle />
       </div>
     </aside>
   );

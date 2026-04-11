@@ -1,23 +1,64 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
 @import "tailwindcss";
 
+/* ---- Light theme (default) ---- */
+
 :root {
   /* Backgrounds */
+  --bg: #f8f9fb;
+  --bg-card: #ffffff;
+  --bg-elevated: #f0f1f5;
+  --bg-hover: #e8e9ef;
+
+  /* Borders */
+  --border: #e2e4ea;
+  --border-light: #ecedf1;
+
+  /* Text */
+  --text: #1a1d27;
+  --text-muted: #5c6178;
+  --text-dim: #8b90a0;
+
+  /* Accents */
+  --amber: #d97706;
+  --amber-soft: rgba(217, 119, 6, 0.12);
+  --teal: #0d9488;
+  --teal-soft: rgba(13, 148, 136, 0.10);
+  --green: #16a34a;
+  --green-soft: rgba(22, 163, 74, 0.10);
+  --red: #dc2626;
+  --red-soft: rgba(220, 38, 38, 0.08);
+  --blue: #2563eb;
+  --blue-soft: rgba(37, 99, 235, 0.08);
+  --orange: #ea580c;
+  --orange-soft: rgba(234, 88, 12, 0.10);
+  --purple: #7c3aed;
+  --purple-soft: rgba(124, 58, 237, 0.08);
+  --yellow: #ca8a04;
+  --yellow-soft: rgba(202, 138, 4, 0.10);
+  --lime: #65a30d;
+  --lime-soft: rgba(101, 163, 13, 0.10);
+
+  /* Fonts */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
+}
+
+/* ---- Dark theme ---- */
+
+[data-theme="dark"] {
   --bg: #0f1117;
   --bg-card: #1a1d27;
   --bg-elevated: #232738;
   --bg-hover: #2a2e3f;
 
-  /* Borders */
   --border: #2e3345;
   --border-light: #3a3f54;
 
-  /* Text */
   --text: #f0f0f5;
   --text-muted: #a0a4b8;
   --text-dim: #6b7084;
 
-  /* Accents */
   --amber: #f59e0b;
   --amber-soft: rgba(245, 158, 11, 0.15);
   --teal: #14b8a6;
@@ -36,10 +77,6 @@
   --yellow-soft: rgba(234, 179, 8, 0.15);
   --lime: #a3e635;
   --lime-soft: rgba(163, 230, 53, 0.15);
-
-  /* Fonts */
-  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
 }
 
 @theme inline {
@@ -60,6 +97,7 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background 0.2s, color 0.2s;
 }
 
 /* Scrollbar styling */
