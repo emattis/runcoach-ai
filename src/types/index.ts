@@ -2,19 +2,35 @@
 // RunCoach AI — Core Type Definitions
 // ============================================================
 
-// --- Athlete ---
+// --- Training Phases & Workout Types ---
 
-export interface AthleteProfile {
-  id: string;
-  name: string | null;
-  goals: AthleteGoals | null;
-  injury_history: InjuryRecord[] | null;
-  preferences: AthletePreferences | null;
-  current_phase: TrainingPhase;
-  phase_start_date: string | null;
-  created_at: string;
-  updated_at: string;
-}
+export type TrainingPhase =
+  | "base_building"
+  | "build"
+  | "peak"
+  | "taper"
+  | "recovery"
+  | "off";
+
+export type WorkoutType =
+  | "easy"
+  | "long_run"
+  | "tempo"
+  | "intervals"
+  | "recovery"
+  | "off"
+  | "cross_train"
+  | "strides";
+
+export type EnergyLevel = "depleted" | "tired" | "moderate" | "strong" | "great";
+
+export type LearningCategory =
+  | "injury_pattern"
+  | "optimal_volume"
+  | "recovery_needs"
+  | "race_readiness";
+
+// --- Athlete ---
 
 export interface AthleteGoals {
   marathon_target: string;
@@ -35,16 +51,26 @@ export interface AthletePreferences {
   off_days: string[];
 }
 
-// --- Training Phases ---
-
-export type TrainingPhase =
-  | "base_building"
-  | "build"
-  | "peak"
-  | "taper"
-  | "recovery";
+export interface AthleteProfile {
+  id: string;
+  name: string | null;
+  goals: AthleteGoals | null;
+  injury_history: InjuryRecord[] | null;
+  preferences: AthletePreferences | null;
+  current_phase: TrainingPhase;
+  phase_start_date: string | null;
+  created_at: string;
+  updated_at: string;
+}
 
 // --- Activities (Strava) ---
+
+export interface Split {
+  mile: number;
+  pace_seconds: number;
+  elevation_gain_ft: number;
+  avg_hr: number | null;
+}
 
 export interface Activity {
   id: string;
@@ -63,16 +89,7 @@ export interface Activity {
   created_at: string;
 }
 
-export interface Split {
-  mile: number;
-  pace_seconds: number;
-  elevation_gain_ft: number;
-  avg_hr: number | null;
-}
-
 // --- Run Feedback ---
-
-export type EnergyLevel = "depleted" | "tired" | "moderate" | "strong" | "great";
 
 export interface RunFeedback {
   id: string;
@@ -90,6 +107,13 @@ export interface RunFeedback {
 
 // --- Training Plans ---
 
+export interface PlanAdjustment {
+  date: string;
+  reason: string;
+  original: string;
+  modified: string;
+}
+
 export interface TrainingPlan {
   id: string;
   week_start: string;
@@ -102,23 +126,7 @@ export interface TrainingPlan {
   created_at: string;
 }
 
-export interface PlanAdjustment {
-  date: string;
-  reason: string;
-  original: string;
-  modified: string;
-}
-
 // --- Planned Workouts ---
-
-export type WorkoutType =
-  | "easy"
-  | "long_run"
-  | "tempo"
-  | "intervals"
-  | "recovery"
-  | "off"
-  | "cross_train";
 
 export interface PlannedWorkout {
   id: string;
@@ -137,6 +145,7 @@ export interface PlannedWorkout {
   created_at: string;
 }
 
+/** Shape returned by AI plan generation */
 export interface PlannedWorkoutData {
   day: string;
   workout_type: WorkoutType;
@@ -149,6 +158,15 @@ export interface PlannedWorkoutData {
 
 // --- Strength Training ---
 
+export interface StrengthExercise {
+  name: string;
+  sets: number;
+  reps: number;
+  weight: number | null;
+  rest_seconds: number;
+  notes: string | null;
+}
+
 export interface StrengthWorkout {
   id: string;
   workout_date: string;
@@ -157,15 +175,6 @@ export interface StrengthWorkout {
   phase: TrainingPhase;
   completed: boolean;
   created_at: string;
-}
-
-export interface StrengthExercise {
-  name: string;
-  sets: number;
-  reps: number;
-  weight: number | null;
-  rest_seconds: number;
-  notes: string | null;
 }
 
 export interface StrengthLog {
@@ -200,12 +209,6 @@ export interface WeeklySummary {
 
 // --- Coach Learnings ---
 
-export type LearningCategory =
-  | "injury_pattern"
-  | "optimal_volume"
-  | "recovery_needs"
-  | "race_readiness";
-
 export interface CoachLearning {
   id: string;
   category: LearningCategory;
@@ -222,4 +225,27 @@ export interface StravaTokens {
   access_token: string;
   refresh_token: string;
   expires_at: number;
+}
+
+// --- Dashboard ---
+
+export interface GoalProgress {
+  label: string;
+  current: string;
+  target: string;
+  progress_pct: number;
+}
+
+export interface DashboardData {
+  athlete: AthleteProfile;
+  current_week_mileage: number;
+  planned_week_mileage: number;
+  today_workout: PlannedWorkout | null;
+  feel_trend: number[];
+  injury_risk_score: number;
+  goals: GoalProgress[];
+  streak_weeks: number;
+  coach_note: string | null;
+  next_race: { name: string; date: string; days_away: number } | null;
+  recent_activities: Activity[];
 }
