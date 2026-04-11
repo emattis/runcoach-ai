@@ -37,6 +37,13 @@ interface DashboardState {
   mileageTarget: number;
   // Coach note
   coachNote: string | null;
+  // Weekly review
+  weeklyReview: {
+    analysis: string;
+    planAdherence: number;
+    recommendations: string[];
+    weekStart: string;
+  } | null;
   // Recent runs
   recentRuns: {
     id: string;
@@ -65,6 +72,7 @@ const INITIAL_STATE: DashboardState = {
   halfTarget: "1:15",
   mileageTarget: 65,
   coachNote: null,
+  weeklyReview: null,
   recentRuns: [],
 };
 
@@ -72,6 +80,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardState>(INITIAL_STATE);
   const [syncing, setSyncing] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [feedbackActivity, setFeedbackActivity] = useState<{
     id: string;
     activity_date: string;
@@ -91,6 +100,7 @@ export default function DashboardPage() {
       planRes,
       riskRes,
       learningRes,
+      summaryRes,
     ] = await Promise.all([
       getSupabase().from("athlete_profile").select("*").limit(1).single(),
       getSupabase()
@@ -117,6 +127,12 @@ export default function DashboardPage() {
         .from("coach_learnings")
         .select("insight")
         .order("updated_at", { ascending: false })
+        .limit(1)
+        .single(),
+      getSupabase()
+        .from("weekly_summaries")
+        .select("week_start, coach_analysis, plan_adherence_pct, recommendations")
+        .order("week_start", { ascending: false })
         .limit(1)
         .single(),
     ]);
@@ -183,6 +199,16 @@ export default function DashboardPage() {
       halfTarget: athlete?.goals?.half_target ?? "1:15",
       mileageTarget: athlete?.goals?.weekly_mileage_target ?? 65,
       coachNote: learningRes.data?.insight ?? null,
+      weeklyReview: summaryRes.data
+        ? {
+            analysis: summaryRes.data.coach_analysis ?? "",
+            planAdherence: summaryRes.data.plan_adherence_pct ?? 0,
+            recommendations: Array.isArray(summaryRes.data.recommendations)
+              ? summaryRes.data.recommendations
+              : [],
+            weekStart: summaryRes.data.week_start,
+          }
+        : null,
       recentRuns: activities,
     });
   }, []);
@@ -339,6 +365,21 @@ export default function DashboardPage() {
           />
         </div>
       </div>
+
+      {/* Weekly Review */}
+      <WeeklyReviewSection
+        review={data.weeklyReview}
+        analyzing={analyzing}
+        onAnalyze={async () => {
+          setAnalyzing(true);
+          try {
+            await fetch("/api/coach/analyze", { method: "POST" });
+            await loadDashboard();
+          } finally {
+            setAnalyzing(false);
+          }
+        }}
+      />
 
       {/* Feedback Modal */}
       {feedbackActivity && (
@@ -1008,6 +1049,121 @@ function RecentRuns({
               </div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Component: WeeklyReviewSection ----
+
+function WeeklyReviewSection({
+  review,
+  analyzing,
+  onAnalyze,
+}: {
+  review: DashboardState["weeklyReview"];
+  analyzing: boolean;
+  onAnalyze: () => void;
+}) {
+  return (
+    <div
+      className="rounded-xl border p-6 mt-6"
+      style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}
+    >
+      <div className="flex items-center justify-between mb-4">
+        <div
+          className="text-xs font-medium uppercase tracking-wider"
+          style={{ color: "var(--text-dim)" }}
+        >
+          Weekly Review
+        </div>
+        <button
+          onClick={onAnalyze}
+          disabled={analyzing}
+          className="px-4 py-1.5 rounded-lg text-xs font-semibold border-0 cursor-pointer disabled:opacity-50 transition-colors"
+          style={{ background: "var(--teal)", color: "#0f1117" }}
+        >
+          {analyzing ? "Analyzing..." : "Run Weekly Analysis"}
+        </button>
+      </div>
+
+      {analyzing && (
+        <div className="py-8 text-center">
+          <div className="text-sm" style={{ color: "var(--text-dim)" }}>
+            AI coach is analyzing your week...
+          </div>
+          <div className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>
+            This may take a moment
+          </div>
+        </div>
+      )}
+
+      {!analyzing && !review && (
+        <div className="text-sm" style={{ color: "var(--text-dim)" }}>
+          No weekly analysis yet. Run one at the end of your training week.
+        </div>
+      )}
+
+      {!analyzing && review && (
+        <div>
+          {/* Adherence badge */}
+          <div className="flex items-center gap-3 mb-4">
+            <span
+              className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold"
+              style={{
+                fontFamily: "var(--font-mono)",
+                background:
+                  review.planAdherence >= 80
+                    ? "var(--green-soft)"
+                    : review.planAdherence >= 60
+                      ? "var(--amber-soft)"
+                      : "var(--red-soft)",
+                color:
+                  review.planAdherence >= 80
+                    ? "var(--green)"
+                    : review.planAdherence >= 60
+                      ? "var(--amber)"
+                      : "var(--red)",
+              }}
+            >
+              {review.planAdherence}% adherence
+            </span>
+            <span className="text-xs" style={{ color: "var(--text-dim)" }}>
+              Week of {new Date(review.weekStart + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            </span>
+          </div>
+
+          {/* Analysis text */}
+          <p
+            className="text-sm leading-relaxed m-0 mb-4"
+            style={{ color: "var(--text-muted)" }}
+          >
+            {review.analysis}
+          </p>
+
+          {/* Recommendations */}
+          {review.recommendations.length > 0 && (
+            <div>
+              <div
+                className="text-xs font-medium uppercase mb-2"
+                style={{ color: "var(--text-dim)" }}
+              >
+                Recommendations
+              </div>
+              <ul className="m-0 pl-4 space-y-1">
+                {review.recommendations.map((rec, i) => (
+                  <li
+                    key={i}
+                    className="text-sm leading-relaxed"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    {String(rec)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </div>

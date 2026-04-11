@@ -84,19 +84,29 @@ export async function POST() {
           recentFeedback.length
         : null;
 
-    // 6. Get latest injury risk score
+    // 6. Get latest weekly summary (injury risk + recommendations)
     const { data: latestSummary } = await db
       .from("weekly_summaries")
-      .select("injury_risk_score")
+      .select("injury_risk_score, recommendations")
       .order("week_start", { ascending: false })
       .limit(1)
       .single();
 
     const injuryRiskScore = latestSummary?.injury_risk_score ?? 20;
 
-    // 7. Load coach learnings
+    // 7. Load coach learnings + recent analysis recommendations
     const learnings = await getCoachLearnings();
     const learningStrings = learnings.map((l) => l.insight);
+
+    // Include recent analysis recommendations in the coaching context
+    if (latestSummary?.recommendations) {
+      const recs = Array.isArray(latestSummary.recommendations)
+        ? latestSummary.recommendations
+        : [];
+      for (const rec of recs) {
+        learningStrings.push(`[recent_recommendation] ${rec}`);
+      }
+    }
 
     // 8. Build context and generate plan
     const preferences = athlete.preferences ?? {
