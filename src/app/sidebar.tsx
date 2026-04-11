@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useThemeStore } from "@/lib/theme";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { NotificationBell } from "@/components/ui/NotificationBell";
 
 const NAV_ITEMS = [
   {
@@ -150,7 +151,10 @@ export function Sidebar() {
             />
             Base Building
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <ThemeToggle />
+          </div>
         </div>
       </aside>
 
@@ -187,7 +191,7 @@ export function Sidebar() {
           );
         })}
         <div className="flex flex-col items-center justify-center py-2 px-1" style={{ minWidth: 48 }}>
-          <ThemeToggle />
+          <NotificationBell />
         </div>
       </nav>
     </>
