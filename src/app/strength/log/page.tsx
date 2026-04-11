@@ -301,12 +301,12 @@ function StrengthLogContent() {
             <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-muted)" }}>
               RPE <span style={{ color: "var(--amber)" }}>*</span>
             </label>
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap gap-2">
               {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
                 <button
                   key={n}
                   onClick={() => setRpeInput(n)}
-                  className="w-8 h-8 rounded-lg text-xs font-semibold border-0 cursor-pointer transition-colors"
+                  className="w-10 h-10 md:w-8 md:h-8 rounded-lg text-sm md:text-xs font-semibold border-0 cursor-pointer transition-colors"
                   style={{
                     background:
                       rpeInput === n
@@ -330,7 +330,7 @@ function StrengthLogContent() {
           <button
             onClick={handleLogSet}
             disabled={!repsInput || rpeInput === null || saving}
-            className="w-full px-4 py-3 rounded-lg text-sm font-semibold border-0 cursor-pointer disabled:opacity-50 transition-colors"
+            className="w-full px-4 py-4 md:py-3 rounded-lg text-base md:text-sm font-semibold border-0 cursor-pointer disabled:opacity-50 transition-colors"
             style={{ background: "var(--amber)", color: "#0f1117" }}
           >
             {saving ? "Saving..." : `Complete Set ${activeSetNum}`}

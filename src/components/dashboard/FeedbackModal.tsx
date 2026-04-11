@@ -107,14 +107,14 @@ export function FeedbackModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-end md:items-center justify-center md:p-4"
       style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className="rounded-xl border w-full max-w-lg max-h-[90vh] overflow-y-auto"
+        className="rounded-t-xl md:rounded-xl border w-full md:max-w-lg max-h-[95vh] md:max-h-[90vh] overflow-y-auto"
         style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}
       >
         {/* Header */}

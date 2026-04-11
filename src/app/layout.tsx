@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Sidebar } from "./sidebar";
 
@@ -7,7 +7,12 @@ export const metadata: Metadata = {
   description: "Personalized AI-powered road running coach",
 };
 
-// Inline script to apply theme before first paint (prevents flash)
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 const themeScript = `
 (function(){
   var t = localStorage.getItem('runcoach-theme');
@@ -25,9 +30,11 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="min-h-full flex">
+      <body className="min-h-full flex flex-col md:flex-row">
         <Sidebar />
-        <main className="ml-[220px] flex-1 min-h-screen p-8">{children}</main>
+        <main className="flex-1 min-h-screen p-4 pb-[calc(var(--bottom-nav-height)+16px)] md:ml-[var(--sidebar-width)] md:p-8 md:pb-8">
+          {children}
+        </main>
       </body>
     </html>
   );

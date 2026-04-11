@@ -174,7 +174,7 @@ export default function TrainingPage() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 md:mb-8">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight m-0">
             Training Plan
@@ -206,7 +206,7 @@ export default function TrainingPage() {
 
       {/* 7-day calendar */}
       <div
-        className="grid gap-3 mb-6"
+        className="flex md:grid gap-3 mb-6 overflow-x-auto pb-2 md:pb-0 snap-x snap-mandatory"
         style={{ gridTemplateColumns: "repeat(7, 1fr)" }}
       >
         {weekDays.map((day, i) => {
@@ -220,7 +220,7 @@ export default function TrainingPage() {
             <button
               key={day.date}
               onClick={() => setSelectedIdx(isSelected ? null : i)}
-              className="rounded-xl p-4 border text-left transition-all cursor-pointer relative"
+              className="rounded-xl p-4 border text-left transition-all cursor-pointer relative flex-shrink-0 snap-start min-w-[100px] md:min-w-0"
               style={{
                 background: isSelected
                   ? "var(--bg-elevated)"

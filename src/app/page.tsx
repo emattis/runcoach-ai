@@ -306,9 +306,9 @@ export default function DashboardPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 md:mb-8">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight m-0">
+          <h1 className="text-xl md:text-2xl font-semibold tracking-tight m-0">
             Dashboard
           </h1>
           <div
@@ -334,7 +334,7 @@ export default function DashboardPage() {
           <button
             onClick={handleSync}
             disabled={syncing}
-            className="px-4 py-2 rounded-lg text-sm font-medium border transition-colors cursor-pointer disabled:opacity-50"
+            className="px-4 py-2.5 md:py-2 rounded-lg text-sm font-medium border transition-colors cursor-pointer disabled:opacity-50"
             style={{
               borderColor: "var(--border-light)",
               color: "var(--text-muted)",
@@ -386,10 +386,7 @@ export default function DashboardPage() {
       )}
 
       {/* Grid */}
-      <div
-        className="grid gap-5"
-        style={{ gridTemplateColumns: "repeat(4, 1fr)" }}
-      >
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
         {/* Row 1 */}
         <MileageProgress
           current={data.currentMileage}
@@ -416,10 +413,10 @@ export default function DashboardPage() {
         />
 
         {/* Row 2 */}
-        <div style={{ gridColumn: "span 2" }}>
+        <div className="sm:col-span-2">
           <TodayWorkoutCard workout={data.todayWorkout} />
         </div>
-        <div style={{ gridColumn: "span 2" }}>
+        <div className="sm:col-span-2">
           <GoalCard
             marathonTarget={data.marathonTarget}
             halfTarget={data.halfTarget}
@@ -431,10 +428,10 @@ export default function DashboardPage() {
         </div>
 
         {/* Row 3 */}
-        <div style={{ gridColumn: "span 2" }}>
+        <div className="sm:col-span-2">
           <CoachNoteCard note={data.coachNote} />
         </div>
-        <div style={{ gridColumn: "span 2" }}>
+        <div className="sm:col-span-2">
           <RecentRuns
             runs={data.recentRuns}
             onAddFeedback={(run) => setFeedbackActivity(run)}

@@ -304,13 +304,10 @@ export default function ProgressionPage() {
         <RacePredictionsCard fitness={fitness} goals={goals} />
       )}
 
-      <div
-        className="grid gap-5 mt-5"
-        style={{ gridTemplateColumns: "repeat(2, 1fr)" }}
-      >
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5 mt-5">
         {/* 1. Weekly Mileage */}
         <ChartCard title="Weekly Mileage" insight={mileageInsight}>
-          <ResponsiveContainer width="100%" height={220}>
+          <ResponsiveContainer width="100%" height={250}>
             <BarChart data={weeks}>
               <XAxis
                 dataKey="weekLabel"
@@ -348,7 +345,7 @@ export default function ProgressionPage() {
 
         {/* 2. Easy Pace Trend */}
         <ChartCard title="Easy Pace Trend" insight={paceInsight}>
-          <ResponsiveContainer width="100%" height={220}>
+          <ResponsiveContainer width="100%" height={250}>
             <LineChart
               data={weeks.filter((w) => w.avgPace !== null)}
             >
@@ -384,7 +381,7 @@ export default function ProgressionPage() {
 
         {/* 3. Long Run Progression */}
         <ChartCard title="Long Run Progression" insight={longestRunInsight}>
-          <ResponsiveContainer width="100%" height={220}>
+          <ResponsiveContainer width="100%" height={250}>
             <LineChart data={weeks}>
               <XAxis
                 dataKey="weekLabel"
@@ -422,7 +419,7 @@ export default function ProgressionPage() {
               : null
           }
         >
-          <ResponsiveContainer width="100%" height={220}>
+          <ResponsiveContainer width="100%" height={250}>
             <ScatterChart>
               <XAxis
                 dataKey="mileage"
@@ -469,7 +466,7 @@ export default function ProgressionPage() {
           title="Training Load (ACWR)"
           insight="Green zone (0.8-1.3) is the safe training range"
         >
-          <ResponsiveContainer width="100%" height={220}>
+          <ResponsiveContainer width="100%" height={250}>
             <LineChart data={acwrData}>
               <ReferenceArea
                 y1={0.8}
@@ -642,10 +639,7 @@ function RacePredictionsCard({
         </div>
       </div>
 
-      <div
-        className="grid gap-4"
-        style={{ gridTemplateColumns: "repeat(4, 1fr)" }}
-      >
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {races.map((race) => {
           const delta = race.goalSec ? race.time - race.goalSec : null;
           const pctDiff = race.goalSec ? ((race.time - race.goalSec) / race.goalSec) * 100 : null;

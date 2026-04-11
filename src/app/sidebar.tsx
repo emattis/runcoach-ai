@@ -73,35 +73,97 @@ export function Sidebar() {
   }, [hydrate]);
 
   return (
-    <aside
-      className="fixed left-0 top-0 h-full flex flex-col border-r"
-      style={{
-        width: 220,
-        background: "var(--bg-card)",
-        borderColor: "var(--border)",
-      }}
-    >
-      {/* Brand */}
-      <div className="px-5 py-6">
-        <Link href="/" className="flex items-center gap-2 no-underline">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M13 4c0 1.1-.4 2.1-1 2.9L8 12l4 5.1c.6.8 1 1.8 1 2.9"
-              stroke="var(--amber)"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-            />
-            <circle cx="16" cy="6" r="2" fill="var(--amber)" />
-          </svg>
-          <span className="text-lg font-semibold tracking-tight">
-            <span style={{ color: "var(--amber)" }}>Run</span>
-            <span style={{ color: "var(--text)" }}>Coach</span>
-          </span>
-        </Link>
-      </div>
+    <>
+      {/* Desktop sidebar */}
+      <aside
+        className="hidden md:flex fixed left-0 top-0 h-full flex-col border-r z-40"
+        style={{
+          width: "var(--sidebar-width)",
+          background: "var(--bg-card)",
+          borderColor: "var(--border)",
+        }}
+      >
+        {/* Brand */}
+        <div className="px-5 py-6">
+          <Link href="/" className="flex items-center gap-2 no-underline">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M13 4c0 1.1-.4 2.1-1 2.9L8 12l4 5.1c.6.8 1 1.8 1 2.9"
+                stroke="var(--amber)"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              />
+              <circle cx="16" cy="6" r="2" fill="var(--amber)" />
+            </svg>
+            <span className="text-lg font-semibold tracking-tight">
+              <span style={{ color: "var(--amber)" }}>Run</span>
+              <span style={{ color: "var(--text)" }}>Coach</span>
+            </span>
+          </Link>
+        </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 px-3 py-2">
+        {/* Navigation */}
+        <nav className="flex-1 px-3 py-2">
+          {NAV_ITEMS.map((item) => {
+            const isActive =
+              item.href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(item.href);
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium no-underline transition-colors mb-0.5"
+                style={{
+                  color: isActive ? "var(--text)" : "var(--text-muted)",
+                  background: isActive ? "var(--bg-elevated)" : "transparent",
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive)
+                    e.currentTarget.style.background = "var(--bg-hover)";
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive)
+                    e.currentTarget.style.background = "transparent";
+                }}
+              >
+                {item.icon}
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Bottom section */}
+        <div
+          className="px-5 py-4 border-t flex items-center justify-between"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <div
+            className="flex items-center gap-2 text-xs"
+            style={{ color: "var(--text-dim)" }}
+          >
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ background: "var(--teal)" }}
+            />
+            Base Building
+          </div>
+          <ThemeToggle />
+        </div>
+      </aside>
+
+      {/* Mobile bottom navigation */}
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t flex items-center justify-around safe-area-bottom"
+        style={{
+          height: "var(--bottom-nav-height)",
+          background: "var(--bg-card)",
+          borderColor: "var(--border)",
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        }}
+      >
         {NAV_ITEMS.map((item) => {
           const isActive =
             item.href === "/"
@@ -112,44 +174,22 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium no-underline transition-colors mb-0.5"
+              className="flex flex-col items-center justify-center gap-0.5 no-underline py-2 px-1"
               style={{
-                color: isActive ? "var(--text)" : "var(--text-muted)",
-                background: isActive ? "var(--bg-elevated)" : "transparent",
-              }}
-              onMouseEnter={(e) => {
-                if (!isActive)
-                  e.currentTarget.style.background = "var(--bg-hover)";
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive)
-                  e.currentTarget.style.background = "transparent";
+                color: isActive ? "var(--amber)" : "var(--text-dim)",
+                minWidth: 48,
+                minHeight: 44,
               }}
             >
               {item.icon}
-              {item.label}
+              <span className="text-[10px] font-medium">{item.label}</span>
             </Link>
           );
         })}
-      </nav>
-
-      {/* Bottom section */}
-      <div
-        className="px-5 py-4 border-t flex items-center justify-between"
-        style={{ borderColor: "var(--border)" }}
-      >
-        <div
-          className="flex items-center gap-2 text-xs"
-          style={{ color: "var(--text-dim)" }}
-        >
-          <span
-            className="w-2 h-2 rounded-full"
-            style={{ background: "var(--teal)" }}
-          />
-          Base Building
+        <div className="flex flex-col items-center justify-center py-2 px-1" style={{ minWidth: 48 }}>
+          <ThemeToggle />
         </div>
-        <ThemeToggle />
-      </div>
-    </aside>
+      </nav>
+    </>
   );
 }

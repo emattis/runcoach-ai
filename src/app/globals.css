@@ -4,22 +4,15 @@
 /* ---- Light theme (default) ---- */
 
 :root {
-  /* Backgrounds */
   --bg: #f8f9fb;
   --bg-card: #ffffff;
   --bg-elevated: #f0f1f5;
   --bg-hover: #e8e9ef;
-
-  /* Borders */
   --border: #e2e4ea;
   --border-light: #ecedf1;
-
-  /* Text */
   --text: #1a1d27;
   --text-muted: #5c6178;
   --text-dim: #8b90a0;
-
-  /* Accents */
   --amber: #d97706;
   --amber-soft: rgba(217, 119, 6, 0.12);
   --teal: #0d9488;
@@ -38,10 +31,10 @@
   --yellow-soft: rgba(202, 138, 4, 0.10);
   --lime: #65a30d;
   --lime-soft: rgba(101, 163, 13, 0.10);
-
-  /* Fonts */
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
+  --sidebar-width: 220px;
+  --bottom-nav-height: 72px;
 }
 
 /* ---- Dark theme ---- */
@@ -51,14 +44,11 @@
   --bg-card: #1a1d27;
   --bg-elevated: #232738;
   --bg-hover: #2a2e3f;
-
   --border: #2e3345;
   --border-light: #3a3f54;
-
   --text: #f0f0f5;
   --text-muted: #a0a4b8;
   --text-dim: #6b7084;
-
   --amber: #f59e0b;
   --amber-soft: rgba(245, 158, 11, 0.15);
   --teal: #14b8a6;
@@ -98,6 +88,13 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background 0.2s, color 0.2s;
+}
+
+/* Prevent iOS zoom on input focus */
+@media (max-width: 767px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
 }
 
 /* Scrollbar styling */
