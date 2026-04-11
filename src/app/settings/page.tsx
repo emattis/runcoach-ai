@@ -139,10 +139,18 @@ function SettingsContent() {
       )}
       {stravaParam === "error" && (
         <div
-          className="rounded-lg px-4 py-3 mb-6 text-sm font-medium"
+          className="rounded-lg px-4 py-3 mb-6 text-sm"
           style={{ background: "var(--red-soft)", color: "var(--red)" }}
         >
-          Failed to connect Strava. Please try again.
+          <div className="font-medium">Failed to connect Strava.</div>
+          {searchParams.get("reason") && (
+            <div
+              className="mt-1 text-xs"
+              style={{ fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}
+            >
+              Reason: {searchParams.get("reason")}
+            </div>
+          )}
         </div>
       )}
 
@@ -160,9 +168,18 @@ function SettingsContent() {
               {stravaConnected ? "Connected" : "Not connected"}
             </span>
           </div>
-          <a
-            href="/api/strava/auth"
-            className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium border no-underline transition-colors"
+          <button
+            onClick={() => {
+              const clientId = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID;
+              const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+              const redirectUri = `${appUrl}/api/strava/auth`;
+              const stravaUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=read,activity:read_all&approval_prompt=auto`;
+              console.log("[strava] Client ID:", clientId);
+              console.log("[strava] Redirect URI:", redirectUri);
+              console.log("[strava] Full OAuth URL:", stravaUrl);
+              window.location.href = stravaUrl;
+            }}
+            className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium border cursor-pointer transition-colors"
             style={{
               borderColor: "var(--border-light)",
               color: stravaConnected ? "var(--text-muted)" : "var(--amber)",
@@ -192,7 +209,7 @@ function SettingsContent() {
               />
             </svg>
             {stravaConnected ? "Reconnect" : "Connect Strava"}
-          </a>
+          </button>
         </div>
       </Section>
 
@@ -294,6 +311,65 @@ function SettingsContent() {
           </span>
         )}
       </div>
+
+      {/* Debug Section — TEMPORARY */}
+      <DebugSection />
+    </div>
+  );
+}
+
+// ---- Debug Section (temporary) ----
+
+function DebugSection() {
+  const [result, setResult] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleTest = async () => {
+    setLoading(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/debug");
+      const data = await res.json();
+      setResult(data);
+    } catch (err) {
+      setResult({ error: String(err) });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      className="rounded-xl p-6 border mt-6"
+      style={{ background: "var(--bg-card)", borderColor: "var(--red)" }}
+    >
+      <h2
+        className="text-sm font-medium uppercase tracking-wider m-0 mb-4"
+        style={{ color: "var(--red)" }}
+      >
+        Debug — DB Connection Test
+      </h2>
+      <button
+        onClick={handleTest}
+        disabled={loading}
+        className="px-4 py-2.5 rounded-lg text-sm font-semibold border-0 cursor-pointer disabled:opacity-50"
+        style={{ background: "var(--red)", color: "#fff" }}
+      >
+        {loading ? "Testing..." : "Test DB Connection"}
+      </button>
+      {result && (
+        <pre
+          className="mt-4 p-4 rounded-lg text-xs overflow-auto"
+          style={{
+            background: "var(--bg-elevated)",
+            color: "var(--text-muted)",
+            fontFamily: "var(--font-mono)",
+            maxHeight: 400,
+          }}
+        >
+          {JSON.stringify(result, null, 2)}
+        </pre>
+      )}
     </div>
   );
 }

@@ -9,9 +9,10 @@ const STRAVA_AUTH = "https://www.strava.com/oauth";
 
 /** Build Strava OAuth authorize URL */
 export function getStravaAuthUrl(): string {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const params = new URLSearchParams({
     client_id: process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID!,
-    redirect_uri: process.env.STRAVA_REDIRECT_URI!,
+    redirect_uri: `${appUrl}/api/strava/auth`,
     response_type: "code",
     scope: "read,activity:read_all",
   });

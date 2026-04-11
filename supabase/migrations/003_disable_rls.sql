@@ -1,0 +1,14 @@
+-- Disable Row Level Security on all tables.
+-- This is a single-user personal app — no multi-tenant access control needed.
+
+ALTER TABLE strava_tokens DISABLE ROW LEVEL SECURITY;
+ALTER TABLE athlete_profile DISABLE ROW LEVEL SECURITY;
+ALTER TABLE activities DISABLE ROW LEVEL SECURITY;
+ALTER TABLE run_feedback DISABLE ROW LEVEL SECURITY;
+ALTER TABLE training_plans DISABLE ROW LEVEL SECURITY;
+ALTER TABLE planned_workouts DISABLE ROW LEVEL SECURITY;
+ALTER TABLE strength_workouts DISABLE ROW LEVEL SECURITY;
+ALTER TABLE strength_logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE weekly_summaries DISABLE ROW LEVEL SECURITY;
+ALTER TABLE coach_learnings DISABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications DISABLE ROW LEVEL SECURITY;
