@@ -131,7 +131,10 @@ export async function generateWeeklyPlan(
 
   const userPrompt = `Generate this week's training plan.
 
-ATHLETE CONTEXT:
+CRITICAL ATHLETE CONTEXT:
+This athlete has a strong aerobic base (2:47 marathon in Oct 2025, 1:19 half marathon). Even when returning from a short break, starting mileage should be 20-25 mpw, NOT beginner levels. He is resuming training after a 2-week injury break in March 2026. He is NOT a beginner runner.
+
+CURRENT STATUS:
 - Current phase: ${ctx.currentPhase} (week ${ctx.weekNumber})
 - Last week's mileage: ${ctx.currentMileage} miles
 - Target mileage this week: ${ctx.targetMileage} miles${isDownWeek ? " (DOWN WEEK — reduce volume 20-25%)" : ""}
@@ -160,10 +163,10 @@ Respond with valid JSON in this exact format:
       "coach_rationale": "why this workout on this day"
     }
   ],
-  "coach_notes": "2-3 sentence summary of the week's plan, training philosophy, and any cautions"
+  "coach_notes": "2-3 sentence summary of the week's plan, training philosophy, and any cautions. MUST include: remind the athlete to reduce any run if they feel pain or excessive fatigue, and that the coach will adapt future weeks based on feedback."
 }
 
-The workouts array must have exactly 7 entries (Monday through Sunday). Distances must sum to approximately ${ctx.targetMileage} miles.`;
+The workouts array must have exactly 7 entries (Monday through Sunday). Distances must sum to approximately ${ctx.targetMileage} miles. Do NOT prescribe less than ${ctx.targetMileage} total miles unless injury risk is elevated.`;
 
   const text = await callGemini(COACH_SYSTEM_PROMPT, userPrompt);
 

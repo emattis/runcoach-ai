@@ -225,7 +225,7 @@ function padWeeklyMileage(weeks: number[]): number[] {
 
 /**
  * Calculate target mileage for next week.
- * - From scratch (0 mileage): start at 20 mpw
+ * - Returning from break or no data: start at 25 mpw (athlete has 2:47 marathon base)
  * - Down week: 75% of current
  * - Normal: 8% increase, capped at goal
  */
@@ -234,9 +234,10 @@ function calculateTargetMileage(
   isDownWeek: boolean,
   goalMileage: number
 ): number {
-  // Starting from scratch or very low
-  if (currentMileage < 5) {
-    return 20;
+  // Returning from break or no recent data — start at 25 mpw
+  // This athlete has a strong aerobic base, not a beginner
+  if (currentMileage < 15) {
+    return 25;
   }
 
   if (isDownWeek) {
