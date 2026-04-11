@@ -4,6 +4,12 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { getSupabase } from "@/lib/db";
 import { getWeekStart, formatPace } from "@/lib/utils";
 import {
+  estimateCurrentFitness,
+  formatRaceTime,
+  parseTargetTime,
+  type FitnessEstimate,
+} from "@/lib/race-predictor";
+import {
   BarChart,
   Bar,
   LineChart,
@@ -24,6 +30,7 @@ interface ActivityRow {
   activity_date: string;
   distance_miles: number | null;
   avg_pace_per_mile: number | null;
+  duration_seconds: number | null;
 }
 
 interface FeedbackRow {
@@ -56,6 +63,11 @@ export default function ProgressionPage() {
   const [strengthLogs, setStrengthLogs] = useState<StrengthLogRow[]>([]);
   const [exercises, setExercises] = useState<string[]>([]);
   const [selectedExercise, setSelectedExercise] = useState("");
+  const [fitness, setFitness] = useState<FitnessEstimate | null>(null);
+  const [goals, setGoals] = useState<{ marathon: string; half: string }>({
+    marathon: "2:40",
+    half: "1:15",
+  });
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -64,10 +76,10 @@ export default function ProgressionPage() {
     twelveWeeksAgo.setDate(twelveWeeksAgo.getDate() - 84);
     const cutoff = twelveWeeksAgo.toISOString().split("T")[0];
 
-    const [actRes, fbRes, slRes] = await Promise.all([
+    const [actRes, fbRes, slRes, goalRes] = await Promise.all([
       db
         .from("activities")
-        .select("activity_date, distance_miles, avg_pace_per_mile")
+        .select("activity_date, distance_miles, avg_pace_per_mile, duration_seconds")
         .gte("activity_date", cutoff)
         .eq("activity_type", "run")
         .order("activity_date", { ascending: true }),
@@ -81,6 +93,11 @@ export default function ProgressionPage() {
         .select("exercise_name, weight_lbs, reps_completed, created_at")
         .gte("created_at", twelveWeeksAgo.toISOString())
         .order("created_at", { ascending: true }),
+      db
+        .from("athlete_profile")
+        .select("goals")
+        .limit(1)
+        .single(),
     ]);
 
     const activities: ActivityRow[] = actRes.data ?? [];
@@ -160,6 +177,18 @@ export default function ProgressionPage() {
     const exNames = [...new Set(sLogs.map((s) => s.exercise_name))].sort();
     setExercises(exNames);
     if (exNames.length > 0) setSelectedExercise(exNames[0]);
+
+    // Race predictions
+    const fitnessEst = estimateCurrentFitness(activities);
+    setFitness(fitnessEst);
+
+    // Goals
+    if (goalRes.data?.goals) {
+      setGoals({
+        marathon: goalRes.data.goals.marathon_target ?? "2:40",
+        half: goalRes.data.goals.half_target ?? "1:15",
+      });
+    }
 
     setLoading(false);
   }, []);
@@ -270,8 +299,13 @@ export default function ProgressionPage() {
         Progression
       </h1>
 
+      {/* Race Predictions */}
+      {fitness && (
+        <RacePredictionsCard fitness={fitness} goals={goals} />
+      )}
+
       <div
-        className="grid gap-5"
+        className="grid gap-5 mt-5"
         style={{ gridTemplateColumns: "repeat(2, 1fr)" }}
       >
         {/* 1. Weekly Mileage */}
@@ -552,6 +586,118 @@ export default function ProgressionPage() {
             )}
           </ResponsiveContainer>
         </ChartCard>
+      </div>
+    </div>
+  );
+}
+
+// ---- Race Predictions Card ----
+
+function RacePredictionsCard({
+  fitness,
+  goals,
+}: {
+  fitness: FitnessEstimate;
+  goals: { marathon: string; half: string };
+}) {
+  const marathonGoalSec = parseTargetTime(goals.marathon);
+  const halfGoalSec = parseTargetTime(goals.half);
+
+  const races = [
+    { label: "5K", time: fitness.predictions.fiveK, goalSec: null },
+    { label: "10K", time: fitness.predictions.tenK, goalSec: null },
+    { label: "Half Marathon", time: fitness.predictions.half, goalSec: halfGoalSec },
+    { label: "Marathon", time: fitness.predictions.marathon, goalSec: marathonGoalSec },
+  ];
+
+  return (
+    <div
+      className="rounded-xl border p-6"
+      style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}
+    >
+      <div className="flex items-center justify-between mb-5">
+        <div
+          className="text-xs font-medium uppercase tracking-wider"
+          style={{ color: "var(--text-dim)" }}
+        >
+          Race Predictions
+        </div>
+        <div className="flex items-center gap-3">
+          <span
+            className="text-xs font-medium px-2 py-0.5 rounded"
+            style={{
+              background: "var(--purple-soft)",
+              color: "var(--purple)",
+              fontFamily: "var(--font-mono)",
+            }}
+          >
+            VDOT {fitness.vdot}
+          </span>
+          <span
+            className="text-xs"
+            style={{ color: "var(--text-dim)" }}
+          >
+            {Math.round(fitness.confidence * 100)}% confidence
+          </span>
+        </div>
+      </div>
+
+      <div
+        className="grid gap-4"
+        style={{ gridTemplateColumns: "repeat(4, 1fr)" }}
+      >
+        {races.map((race) => {
+          const delta = race.goalSec ? race.time - race.goalSec : null;
+          const pctDiff = race.goalSec ? ((race.time - race.goalSec) / race.goalSec) * 100 : null;
+
+          let deltaColor = "var(--text-dim)";
+          if (delta !== null) {
+            if (delta <= 0) deltaColor = "var(--green)";
+            else if (pctDiff !== null && pctDiff <= 3) deltaColor = "var(--amber)";
+            else deltaColor = "var(--red)";
+          }
+
+          return (
+            <div key={race.label}>
+              <div
+                className="text-xs uppercase mb-2"
+                style={{ color: "var(--text-dim)" }}
+              >
+                {race.label}
+              </div>
+              <div
+                className="text-xl font-semibold"
+                style={{ fontFamily: "var(--font-mono)", color: "var(--text)" }}
+              >
+                {formatRaceTime(race.time)}
+              </div>
+              {delta !== null && (
+                <div
+                  className="text-xs mt-1 font-medium"
+                  style={{ fontFamily: "var(--font-mono)", color: deltaColor }}
+                >
+                  {delta <= 0 ? "" : "+"}
+                  {formatRaceTime(Math.abs(delta))} {delta <= 0 ? "ahead" : "from goal"}
+                </div>
+              )}
+              {race.goalSec && (
+                <div
+                  className="text-[10px] mt-0.5"
+                  style={{ color: "var(--text-dim)" }}
+                >
+                  Goal: {formatRaceTime(race.goalSec)}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div
+        className="text-xs mt-4 pt-3 border-t"
+        style={{ borderColor: "var(--border)", color: "var(--text-dim)" }}
+      >
+        {fitness.dataSource}
       </div>
     </div>
   );

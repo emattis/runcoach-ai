@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { getSupabase } from "@/lib/db";
 import { formatPace, formatDuration, getWeekStart, workoutColor, riskLevel } from "@/lib/utils";
 import { FeedbackModal } from "@/components/dashboard/FeedbackModal";
+import { estimateCurrentFitness, formatRaceTime, parseTargetTime } from "@/lib/race-predictor";
 import type { WorkoutType } from "@/types";
 
 // ---- Types for dashboard data ----
@@ -35,6 +36,9 @@ interface DashboardState {
   marathonTarget: string;
   halfTarget: string;
   mileageTarget: number;
+  // Predictions
+  predictedMarathon: number | null;
+  predictedHalf: number | null;
   // Coach note
   coachNote: string | null;
   // Phase transition
@@ -84,6 +88,8 @@ const INITIAL_STATE: DashboardState = {
   marathonTarget: "2:40",
   halfTarget: "1:15",
   mileageTarget: 65,
+  predictedMarathon: null,
+  predictedHalf: null,
   coachNote: null,
   phaseTransition: null,
   coachInsights: [],
@@ -122,7 +128,7 @@ export default function DashboardPage() {
       getSupabase().from("athlete_profile").select("*").limit(1).single(),
       getSupabase()
         .from("activities")
-        .select("id, activity_date, distance_miles, avg_pace_per_mile, avg_hr, duration_seconds")
+        .select("id, activity_date, distance_miles, avg_pace_per_mile, avg_hr, duration_seconds, perceived_effort")
         .gte("activity_date", weekStart)
         .eq("activity_type", "run")
         .order("activity_date", { ascending: false }),
@@ -248,6 +254,14 @@ export default function DashboardPage() {
           }
         : null,
       recentRuns: activities,
+      predictedMarathon: (() => {
+        const fit = estimateCurrentFitness(activities);
+        return fit?.predictions.marathon ?? null;
+      })(),
+      predictedHalf: (() => {
+        const fit = estimateCurrentFitness(activities);
+        return fit?.predictions.half ?? null;
+      })(),
     });
   }, []);
 
@@ -411,6 +425,8 @@ export default function DashboardPage() {
             halfTarget={data.halfTarget}
             mileageTarget={data.mileageTarget}
             currentWeeklyMileage={data.currentMileage}
+            predictedMarathon={data.predictedMarathon}
+            predictedHalf={data.predictedHalf}
           />
         </div>
 
@@ -868,11 +884,15 @@ function GoalCard({
   halfTarget,
   mileageTarget,
   currentWeeklyMileage,
+  predictedMarathon,
+  predictedHalf,
 }: {
   marathonTarget: string;
   halfTarget: string;
   mileageTarget: number;
   currentWeeklyMileage: number;
+  predictedMarathon: number | null;
+  predictedHalf: number | null;
 }) {
   const mileagePct = mileageTarget > 0
     ? Math.min(Math.round((currentWeeklyMileage / mileageTarget) * 100), 100)
@@ -890,8 +910,18 @@ function GoalCard({
         Goals
       </div>
       <div className="space-y-4">
-        <GoalRow label="Marathon" target={marathonTarget} accent="var(--amber)" />
-        <GoalRow label="Half Marathon" target={halfTarget} accent="var(--orange)" />
+        <GoalRowWithPrediction
+          label="Marathon"
+          target={marathonTarget}
+          predicted={predictedMarathon}
+          accent="var(--amber)"
+        />
+        <GoalRowWithPrediction
+          label="Half Marathon"
+          target={halfTarget}
+          predicted={predictedHalf}
+          accent="var(--orange)"
+        />
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-sm" style={{ color: "var(--text-muted)" }}>
@@ -919,26 +949,48 @@ function GoalCard({
   );
 }
 
-function GoalRow({
+function GoalRowWithPrediction({
   label,
   target,
+  predicted,
   accent,
 }: {
   label: string;
   target: string;
+  predicted: number | null;
   accent: string;
 }) {
+  const targetSec = parseTargetTime(target);
+
+  let predColor = "var(--text-dim)";
+  if (predicted !== null && targetSec > 0) {
+    const pctDiff = ((predicted - targetSec) / targetSec) * 100;
+    if (pctDiff <= 0) predColor = "var(--green)";
+    else if (pctDiff <= 3) predColor = "var(--amber)";
+    else predColor = "var(--red)";
+  }
+
   return (
     <div className="flex items-center justify-between">
       <span className="text-sm" style={{ color: "var(--text-muted)" }}>
         {label}
       </span>
-      <span
-        className="text-sm font-semibold"
-        style={{ fontFamily: "var(--font-mono)", color: accent }}
-      >
-        {target}
-      </span>
+      <div className="flex items-center gap-3">
+        {predicted !== null && (
+          <span
+            className="text-xs font-medium"
+            style={{ fontFamily: "var(--font-mono)", color: predColor }}
+          >
+            Est: {formatRaceTime(predicted)}
+          </span>
+        )}
+        <span
+          className="text-sm font-semibold"
+          style={{ fontFamily: "var(--font-mono)", color: accent }}
+        >
+          {target}
+        </span>
+      </div>
     </div>
   );
 }
