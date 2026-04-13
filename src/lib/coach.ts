@@ -12,25 +12,48 @@ const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
 async function callGemini(systemPrompt: string, userPrompt: string): Promise<string> {
-  const url = `${GEMINI_URL}?key=${process.env.GEMINI_API_KEY}`;
+  const apiKey = process.env.GEMINI_API_KEY;
+  console.log("[gemini] API key exists:", !!apiKey, "length:", apiKey?.length ?? 0);
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      generationConfig: { responseMimeType: "application/json" },
-    }),
-  });
+  const url = `${GEMINI_URL}?key=${apiKey}`;
+
+  console.log("[gemini] Sending request to Gemini...");
+  console.log("[gemini] Prompt length:", userPrompt.length, "chars");
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        generationConfig: { responseMimeType: "application/json" },
+      }),
+    });
+  } catch (fetchErr) {
+    console.error("[gemini] Fetch failed:", fetchErr);
+    throw fetchErr;
+  }
+
+  console.log("[gemini] Response status:", res.status, res.statusText);
 
   if (!res.ok) {
     const text = await res.text();
+    console.error("[gemini] Error response body:", text.slice(0, 500));
     throw new Error(`Gemini API error (${res.status}): ${text}`);
   }
 
   const data = await res.json();
-  return data.candidates[0].content.parts[0].text;
+
+  if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
+    console.error("[gemini] Unexpected response structure:", JSON.stringify(data).slice(0, 500));
+    throw new Error("Gemini returned no content");
+  }
+
+  const text = data.candidates[0].content.parts[0].text;
+  console.log("[gemini] Response received, length:", text.length, "chars");
+  return text;
 }
 
 // ---- System prompt ----

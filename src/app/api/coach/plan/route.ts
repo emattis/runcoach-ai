@@ -21,6 +21,8 @@ import type { TrainingPhase } from "@/types";
 export async function POST() {
   const db = createServiceClient();
 
+  console.log("[plan] ===== Step 1: Starting plan generation =====");
+
   try {
     // Determine the target plan week
     const now = new Date();
@@ -32,7 +34,7 @@ export async function POST() {
     }
     const weekStart = getWeekStart(planDate);
 
-    console.log(`[plan] Today: ${now.toISOString().split("T")[0]}, Plan week starts: ${weekStart}`);
+    console.log(`[plan] Step 2: Today is ${now.toISOString()}, dayOfWeek=${dayOfWeek} (0=Sun), planDate=${planDate.toISOString().split("T")[0]}, weekStart=${weekStart}`);
 
     // Delete ALL existing plans (clean slate)
     await db.from("planned_workouts").delete().neq("id", "00000000-0000-0000-0000-000000000000");
@@ -89,7 +91,7 @@ export async function POST() {
       athlete.goals?.weekly_mileage_target ?? 50
     );
 
-    console.log(`[plan] Target mileage: ${targetMileage}, isDownWeek: ${isDownWeek}`);
+    console.log(`[plan] Step 3: Target mileage: ${targetMileage}, isDownWeek: ${isDownWeek}, priorWeekMileage: ${priorWeekMileage}`);
 
     // 4. Get recent feedback
     const { data: recentFeedback } = await db
@@ -164,7 +166,9 @@ export async function POST() {
       preferences,
     };
 
+    console.log("[plan] Step 4: Calling Gemini API via generateWeeklyPlan...");
     const plan = await generateWeeklyPlan(context);
+    console.log("[plan] Step 5: Gemini response received, workouts:", plan.workouts.length);
 
     // 8. Save training plan to DB
     const { data: savedPlan, error: planErr } = await db
@@ -206,11 +210,14 @@ export async function POST() {
       .insert(workoutRows);
 
     if (workoutErr) {
+      console.error("[plan] Step 6 FAILED: workout save error:", workoutErr);
       return NextResponse.json(
         { error: `Failed to save workouts: ${workoutErr.message}` },
         { status: 500 }
       );
     }
+
+    console.log("[plan] Step 6: Plan and workouts saved to database successfully");
 
     return NextResponse.json({
       plan_id: savedPlan.id,
@@ -224,7 +231,9 @@ export async function POST() {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("Plan generation error:", message);
+    const stack = err instanceof Error ? err.stack : "";
+    console.error("[plan] FATAL ERROR:", message);
+    console.error("[plan] Stack:", stack);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
