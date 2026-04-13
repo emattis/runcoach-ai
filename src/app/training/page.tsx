@@ -46,6 +46,7 @@ export default function TrainingPage() {
   const [loading, setLoading] = useState(true);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [coachBanner, setCoachBanner] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
 
   const today = new Date().toISOString().split("T")[0];
   const weekStart = getWeekStart(new Date());
@@ -191,15 +192,32 @@ export default function TrainingPage() {
             </span>
           </div>
         </div>
-        <div
-          className="text-right"
-          style={{ fontFamily: "var(--font-mono)" }}
-        >
-          <div className="text-xs uppercase" style={{ color: "var(--text-dim)" }}>
-            Target
-          </div>
-          <div className="text-xl font-semibold" style={{ color: "var(--amber)" }}>
-            {plan.target_mileage} mi
+        <div className="flex items-center gap-4">
+          <button
+            onClick={async () => {
+              if (!confirm("Reset this week's plan? Activities will be preserved.")) return;
+              setResetting(true);
+              await fetch("/api/coach/reset-plan", { method: "POST" });
+              setPlan(null);
+              setWorkouts([]);
+              setResetting(false);
+            }}
+            disabled={resetting}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium border cursor-pointer disabled:opacity-50 transition-colors"
+            style={{ borderColor: "var(--border-light)", color: "var(--text-dim)", background: "transparent" }}
+          >
+            {resetting ? "Resetting..." : "Reset Week"}
+          </button>
+          <div
+            className="text-right"
+            style={{ fontFamily: "var(--font-mono)" }}
+          >
+            <div className="text-xs uppercase" style={{ color: "var(--text-dim)" }}>
+              Target
+            </div>
+            <div className="text-xl font-semibold" style={{ color: "var(--amber)" }}>
+              {plan.target_mileage} mi
+            </div>
           </div>
         </div>
       </div>
@@ -212,9 +230,10 @@ export default function TrainingPage() {
         {weekDays.map((day, i) => {
           const isToday = day.date === today;
           const isSelected = selectedIdx === i;
-          const wt = day.workout;
-          const color = wt ? workoutColor(wt.workout_type) : "var(--text-dim)";
-          const isModified = !!wt?.athlete_modification;
+          const sessions = day.sessions;
+          const hasRun = sessions.find((s) => !["strength", "mobility", "yoga", "drills", "off"].includes(s.workout_type));
+          const totalDistance = sessions.reduce((s, w) => s + (w.target_distance ?? 0), 0);
+          const allDone = sessions.length > 0 && sessions.every((s) => s.completed);
 
           return (
             <button
@@ -222,92 +241,84 @@ export default function TrainingPage() {
               onClick={() => setSelectedIdx(isSelected ? null : i)}
               className="rounded-xl p-4 border text-left transition-all cursor-pointer relative flex-shrink-0 snap-start min-w-[100px] md:min-w-0"
               style={{
-                background: isSelected
-                  ? "var(--bg-elevated)"
-                  : "var(--bg-card)",
-                borderColor: isToday
-                  ? "var(--amber)"
-                  : isSelected
-                    ? "var(--border-light)"
-                    : "var(--border)",
-                boxShadow: isToday
-                  ? "0 0 0 1px var(--amber), 0 0 12px rgba(245,158,11,0.15)"
-                  : "none",
+                background: isSelected ? "var(--bg-elevated)" : "var(--bg-card)",
+                borderColor: isToday ? "var(--amber)" : isSelected ? "var(--border-light)" : "var(--border)",
+                boxShadow: isToday ? "0 0 0 1px var(--amber), 0 0 12px rgba(245,158,11,0.15)" : "none",
               }}
             >
               <div
                 className="text-xs font-medium uppercase mb-2"
-                style={{
-                  color: isToday ? "var(--amber)" : "var(--text-dim)",
-                }}
+                style={{ color: isToday ? "var(--amber)" : "var(--text-dim)" }}
               >
                 {DAY_ABBR[i]}
               </div>
 
-              {wt ? (
-                <span
-                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase mb-2"
-                  style={{ background: `${color}22`, color }}
-                >
-                  {wt.workout_type.replace("_", " ")}
-                </span>
-              ) : (
-                <span
-                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase mb-2"
-                  style={{
-                    background: "var(--bg-elevated)",
-                    color: "var(--text-dim)",
-                  }}
-                >
-                  off
-                </span>
-              )}
+              {/* Session type badges */}
+              <div className="flex flex-wrap gap-1 mb-2">
+                {sessions.length > 0 ? (
+                  sessions.map((s, j) => {
+                    const c = workoutColor(s.workout_type);
+                    return (
+                      <span
+                        key={j}
+                        className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase"
+                        style={{ background: `${c}22`, color: c }}
+                      >
+                        {s.workout_type.replace("_", " ")}
+                      </span>
+                    );
+                  })
+                ) : (
+                  <span
+                    className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase"
+                    style={{ background: "var(--bg-elevated)", color: "var(--text-dim)" }}
+                  >
+                    off
+                  </span>
+                )}
+              </div>
 
+              {/* Distance (runs only) */}
               <div
                 className="text-lg font-semibold"
                 style={{
                   fontFamily: "var(--font-mono)",
-                  color: wt && wt.target_distance ? "var(--text)" : "var(--text-dim)",
+                  color: totalDistance > 0 ? "var(--text)" : "var(--text-dim)",
                 }}
               >
-                {wt && wt.target_distance ? `${wt.target_distance}` : "—"}
-                <span
-                  className="text-xs font-normal ml-0.5"
-                  style={{ color: "var(--text-dim)" }}
-                >
-                  {wt && wt.target_distance ? "mi" : ""}
+                {totalDistance > 0 ? totalDistance : "—"}
+                <span className="text-xs font-normal ml-0.5" style={{ color: "var(--text-dim)" }}>
+                  {totalDistance > 0 ? "mi" : ""}
                 </span>
               </div>
 
-              {/* Status icons */}
-              <div className="absolute top-3 right-3 flex gap-1">
-                {isModified && (
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <circle cx="7" cy="7" r="6" fill="var(--orange)" opacity="0.2" />
-                    <path d="M4 7h6" stroke="var(--orange)" strokeWidth="1.5" strokeLinecap="round" />
-                    <path d="M7 4v6" stroke="var(--orange)" strokeWidth="1.5" strokeLinecap="round" />
-                  </svg>
-                )}
-                {wt?.completed && (
+              {/* Status */}
+              {allDone && sessions.length > 0 && (
+                <div className="absolute top-3 right-3">
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                     <circle cx="7" cy="7" r="6" fill="var(--green)" opacity="0.2" />
                     <path d="M4.5 7L6 8.5L9.5 5" stroke="var(--green)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                )}
-              </div>
+                </div>
+              )}
             </button>
           );
         })}
       </div>
 
-      {/* Expanded detail panel */}
-      {selected?.workout && (
-        <DetailPanel
-          workout={selected.workout}
-          date={selected.date}
-          onClose={() => setSelectedIdx(null)}
-          onModificationSaved={handleModificationSaved}
-        />
+      {/* Expanded detail panel — show all sessions for selected day */}
+      {selected && selected.sessions.length > 0 && (
+        <div className="space-y-4">
+          {selected.sessions.map((session) => (
+            <DetailPanel
+              key={session.id}
+              workout={session}
+              date={selected.date}
+              onClose={() => setSelectedIdx(null)}
+              onModificationSaved={handleModificationSaved}
+            />
+          ))}
+        </div>
       )}
 
       {/* Coach notes */}
@@ -652,7 +663,7 @@ function DetailPanel({
 
 interface WeekDay {
   date: string;
-  workout: PlannedWorkoutRow | null;
+  sessions: PlannedWorkoutRow[];
 }
 
 function buildWeekDays(
@@ -660,7 +671,12 @@ function buildWeekDays(
   workouts: PlannedWorkoutRow[]
 ): WeekDay[] {
   const start = new Date(weekStart + "T00:00:00");
-  const byDate = new Map(workouts.map((w) => [w.workout_date, w]));
+  const byDate = new Map<string, PlannedWorkoutRow[]>();
+  for (const w of workouts) {
+    const existing = byDate.get(w.workout_date) ?? [];
+    existing.push(w);
+    byDate.set(w.workout_date, existing);
+  }
 
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(start);
@@ -671,7 +687,7 @@ function buildWeekDays(
     const dateStr = `${yyyy}-${mm}-${dd}`;
     return {
       date: dateStr,
-      workout: byDate.get(dateStr) ?? null,
+      sessions: byDate.get(dateStr) ?? [],
     };
   });
 }

@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { getSupabase } from "@/lib/db";
+import { WorkoutFeedbackModal } from "@/components/ui/WorkoutFeedbackModal";
 
 interface Exercise {
   name: string;
@@ -44,6 +45,7 @@ function StrengthLogContent() {
   const [loading, setLoading] = useState(true);
   const [loggedSets, setLoggedSets] = useState<LoggedSet[]>([]);
   const [finishing, setFinishing] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
 
   // Current set input state
   const [activeExIdx, setActiveExIdx] = useState(0);
@@ -143,7 +145,11 @@ function StrengthLogContent() {
     setSaving(false);
   };
 
-  const handleFinish = async () => {
+  const handleFinish = () => {
+    setShowFeedback(true);
+  };
+
+  const completeAndNavigate = async () => {
     setFinishing(true);
     await fetch("/api/strength/log", {
       method: "PUT",
@@ -392,6 +398,27 @@ function StrengthLogContent() {
         >
           {finishing ? "Finishing..." : "Finish Workout"}
         </button>
+      )}
+
+      {/* Feedback modal after finishing */}
+      {showFeedback && workout && (
+        <WorkoutFeedbackModal
+          type="strength"
+          workoutId={workout.id}
+          workoutLabel={workout.workout_name}
+          onClose={() => {
+            setShowFeedback(false);
+            completeAndNavigate();
+          }}
+          onSaved={() => {
+            setShowFeedback(false);
+            completeAndNavigate();
+          }}
+          onSkip={() => {
+            setShowFeedback(false);
+            completeAndNavigate();
+          }}
+        />
       )}
     </div>
   );

@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { getSupabase } from "@/lib/db";
 import { formatPace, formatDuration, getWeekStart, workoutColor, riskLevel } from "@/lib/utils";
 import { FeedbackModal } from "@/components/dashboard/FeedbackModal";
+import { WorkoutFeedbackModal } from "@/components/ui/WorkoutFeedbackModal";
+import { QuickNoteModal } from "@/components/ui/QuickNoteModal";
 import { estimateCurrentFitness, formatRaceTime, parseTargetTime } from "@/lib/race-predictor";
 import type { WorkoutType } from "@/types";
 
@@ -22,8 +24,8 @@ interface DashboardState {
   injuryRiskScore: number;
   riskFactors: string[];
   riskRecommendation: string;
-  // Today's workout
-  todayWorkout: {
+  // Today's sessions
+  todaySessions: {
     workout_type: WorkoutType;
     description: string | null;
     target_distance: number | null;
@@ -31,7 +33,7 @@ interface DashboardState {
     target_hr_zone: string | null;
     completed: boolean;
     id: string;
-  } | null;
+  }[];
   // Goals
   marathonTarget: string;
   halfTarget: string;
@@ -84,7 +86,7 @@ const INITIAL_STATE: DashboardState = {
   injuryRiskScore: 0,
   riskFactors: [],
   riskRecommendation: "",
-  todayWorkout: null,
+  todaySessions: [],
   marathonTarget: "2:40",
   halfTarget: "1:15",
   mileageTarget: 65,
@@ -102,6 +104,11 @@ export default function DashboardPage() {
   const [syncing, setSyncing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [showQuickNote, setShowQuickNote] = useState(false);
+  const [completingWorkout, setCompletingWorkout] = useState<{
+    id: string;
+    label: string;
+  } | null>(null);
   const [feedbackActivity, setFeedbackActivity] = useState<{
     id: string;
     activity_date: string;
@@ -136,8 +143,7 @@ export default function DashboardPage() {
         .from("planned_workouts")
         .select("id, workout_type, description, target_distance, target_pace_range, target_hr_zone, completed")
         .eq("workout_date", today)
-        .limit(1)
-        .single(),
+        .order("created_at", { ascending: true }),
       getSupabase()
         .from("training_plans")
         .select("target_mileage")
@@ -175,7 +181,15 @@ export default function DashboardPage() {
       avg_hr: number | null;
       duration_seconds: number | null;
     }[] = activitiesRes.data ?? [];
-    const todayW = todayWorkoutRes.data;
+    const todaySessions: {
+      id: string;
+      workout_type: string;
+      description: string | null;
+      target_distance: number | null;
+      target_pace_range: string | null;
+      target_hr_zone: string | null;
+      completed: boolean;
+    }[] = todayWorkoutRes.data ?? [];
 
     // Check which activities have feedback
     const activityIds = rawActivities.map((a) => a.id);
@@ -218,12 +232,10 @@ export default function DashboardPage() {
       injuryRiskScore: riskRes.score ?? 0,
       riskFactors: riskRes.factors ?? [],
       riskRecommendation: riskRes.recommendation ?? "",
-      todayWorkout: todayW
-        ? {
-            ...todayW,
-            workout_type: todayW.workout_type as WorkoutType,
-          }
-        : null,
+      todaySessions: todaySessions.map((s) => ({
+        ...s,
+        workout_type: s.workout_type as WorkoutType,
+      })),
       marathonTarget: athlete?.goals?.marathon_target ?? "2:40",
       halfTarget: athlete?.goals?.half_target ?? "1:15",
       mileageTarget: athlete?.goals?.weekly_mileage_target ?? 65,
@@ -330,7 +342,14 @@ export default function DashboardPage() {
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+          <button
+            onClick={() => setShowQuickNote(true)}
+            className="px-3 py-2.5 md:py-2 rounded-lg text-sm font-medium border transition-colors cursor-pointer"
+            style={{ borderColor: "var(--border-light)", color: "var(--teal)", background: "transparent" }}
+          >
+            Note to Coach
+          </button>
           <button
             onClick={handleSync}
             disabled={syncing}
@@ -358,7 +377,7 @@ export default function DashboardPage() {
               color: "#0f1117",
             }}
           >
-            {generating ? "Generating..." : "Generate Plan"}
+            {generating ? "Generating..." : data.todaySessions.length > 0 ? "Regenerate Plan" : "Generate Plan"}
           </button>
         </div>
       </div>
@@ -414,7 +433,15 @@ export default function DashboardPage() {
 
         {/* Row 2 */}
         <div className="sm:col-span-2">
-          <TodayWorkoutCard workout={data.todayWorkout} />
+          <TodaySessionsCard
+            sessions={data.todaySessions}
+            onMarkComplete={(session) => {
+              const label = session.target_distance
+                ? `${session.target_distance} mi ${session.workout_type.replace("_", " ")}`
+                : session.workout_type.replace("_", " ");
+              setCompletingWorkout({ id: session.id, label });
+            }}
+          />
         </div>
         <div className="sm:col-span-2">
           <GoalCard
@@ -459,7 +486,7 @@ export default function DashboardPage() {
         <CoachInsightsSection insights={data.coachInsights} />
       )}
 
-      {/* Feedback Modal */}
+      {/* Run Feedback Modal (from Recent Runs) */}
       {feedbackActivity && (
         <FeedbackModal
           activity={feedbackActivity}
@@ -467,6 +494,44 @@ export default function DashboardPage() {
           onSaved={() => {
             setFeedbackActivity(null);
             loadDashboard();
+          }}
+        />
+      )}
+
+      {/* Workout Completion Feedback Modal */}
+      {completingWorkout && (
+        <WorkoutFeedbackModal
+          type="run"
+          workoutId={completingWorkout.id}
+          workoutLabel={completingWorkout.label}
+          onClose={() => setCompletingWorkout(null)}
+          onSaved={async () => {
+            // Mark the workout complete after feedback
+            await getSupabase()
+              .from("planned_workouts")
+              .update({ completed: true })
+              .eq("id", completingWorkout.id);
+            setCompletingWorkout(null);
+            loadDashboard();
+          }}
+          onSkip={async () => {
+            // Skip feedback, just mark complete
+            await getSupabase()
+              .from("planned_workouts")
+              .update({ completed: true })
+              .eq("id", completingWorkout.id);
+            setCompletingWorkout(null);
+            loadDashboard();
+          }}
+        />
+      )}
+
+      {/* Quick Note Modal */}
+      {showQuickNote && (
+        <QuickNoteModal
+          onClose={() => setShowQuickNote(false)}
+          onSaved={() => {
+            setShowQuickNote(false);
           }}
         />
       )}
@@ -737,138 +802,95 @@ function RiskGauge({
 
 // ---- Component: TodayWorkoutCard ----
 
-function TodayWorkoutCard({
-  workout,
+type SessionItem = DashboardState["todaySessions"][number];
+
+function TodaySessionsCard({
+  sessions,
+  onMarkComplete,
 }: {
-  workout: DashboardState["todayWorkout"];
+  sessions: DashboardState["todaySessions"];
+  onMarkComplete: (session: SessionItem) => void;
 }) {
-  const [marking, setMarking] = useState(false);
-
-  const handleComplete = async () => {
-    if (!workout) return;
-    setMarking(true);
-    await getSupabase()
-      .from("planned_workouts")
-      .update({ completed: true })
-      .eq("id", workout.id);
-    setMarking(false);
-  };
-
-  if (!workout) {
+  if (sessions.length === 0) {
     return (
       <div
         className="rounded-xl p-6 border h-full flex flex-col justify-center items-center"
         style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}
       >
         <div className="text-sm" style={{ color: "var(--text-dim)" }}>
-          No workout planned for today
+          No sessions planned for today
         </div>
-        <div
-          className="text-xs mt-1"
-          style={{ color: "var(--text-dim)" }}
-        >
+        <div className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>
           Generate a plan to get started
         </div>
       </div>
     );
   }
 
-  const color = workoutColor(workout.workout_type);
-
   return (
     <div
       className="rounded-xl p-6 border h-full"
       style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}
     >
-      <div className="flex items-center justify-between mb-4">
-        <div
-          className="text-xs font-medium uppercase tracking-wider"
-          style={{ color: "var(--text-dim)" }}
-        >
-          Today&apos;s Workout
-        </div>
-        {!workout.completed && (
-          <button
-            onClick={handleComplete}
-            disabled={marking}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium border-0 cursor-pointer disabled:opacity-50 transition-colors"
-            style={{ background: "var(--green-soft)", color: "var(--green)" }}
-          >
-            {marking ? "Saving..." : "Mark Complete"}
-          </button>
-        )}
-        {workout.completed && (
-          <span
-            className="px-3 py-1.5 rounded-lg text-xs font-medium"
-            style={{ background: "var(--green-soft)", color: "var(--green)" }}
-          >
-            Completed
-          </span>
-        )}
+      <div
+        className="text-xs font-medium uppercase tracking-wider mb-4"
+        style={{ color: "var(--text-dim)" }}
+      >
+        Today&apos;s Sessions
       </div>
-
-      <div className="flex items-start gap-4">
-        <span
-          className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold uppercase"
-          style={{ background: `${color}22`, color }}
-        >
-          {workout.workout_type.replace("_", " ")}
-        </span>
-        <div className="flex-1">
-          <p className="text-sm m-0 leading-relaxed" style={{ color: "var(--text)" }}>
-            {workout.description ?? "No description"}
-          </p>
-          <div className="flex gap-5 mt-3">
-            {workout.target_distance && (
-              <div>
-                <div
-                  className="text-xs uppercase"
-                  style={{ color: "var(--text-dim)" }}
-                >
-                  Distance
-                </div>
-                <div
-                  className="text-sm font-medium mt-0.5"
-                  style={{ fontFamily: "var(--font-mono)", color: "var(--text)" }}
-                >
-                  {workout.target_distance} mi
-                </div>
-              </div>
-            )}
-            {workout.target_pace_range && (
-              <div>
-                <div
-                  className="text-xs uppercase"
-                  style={{ color: "var(--text-dim)" }}
-                >
-                  Pace
-                </div>
-                <div
-                  className="text-sm font-medium mt-0.5"
-                  style={{ fontFamily: "var(--font-mono)", color: "var(--text)" }}
-                >
-                  {workout.target_pace_range}
+      <div className="space-y-3">
+        {sessions.map((s) => {
+          const color = workoutColor(s.workout_type);
+          return (
+            <div
+              key={s.id}
+              className="flex items-start gap-3 py-2 border-b last:border-0"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <span
+                className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold uppercase flex-shrink-0 mt-0.5"
+                style={{ background: `${color}22`, color }}
+              >
+                {s.workout_type.replace("_", " ")}
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm m-0 leading-relaxed" style={{ color: "var(--text)" }}>
+                  {s.description ?? s.workout_type.replace("_", " ")}
+                </p>
+                <div className="flex gap-4 mt-1">
+                  {s.target_distance ? (
+                    <span className="text-xs" style={{ fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>
+                      {s.target_distance} mi
+                    </span>
+                  ) : null}
+                  {s.target_pace_range ? (
+                    <span className="text-xs" style={{ fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>
+                      {s.target_pace_range}
+                    </span>
+                  ) : null}
                 </div>
               </div>
-            )}
-            {workout.target_hr_zone && (
-              <div>
-                <div
-                  className="text-xs uppercase"
-                  style={{ color: "var(--text-dim)" }}
-                >
-                  HR Zone
-                </div>
-                <div
-                  className="text-sm font-medium mt-0.5"
-                  style={{ fontFamily: "var(--font-mono)", color: "var(--text)" }}
-                >
-                  {workout.target_hr_zone}
-                </div>
+              <div className="flex-shrink-0">
+                {s.completed ? (
+                  <span
+                    className="px-2 py-1 rounded text-[10px] font-medium"
+                    style={{ background: "var(--green-soft)", color: "var(--green)" }}
+                  >
+                    Done
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => onMarkComplete(s)}
+                    className="px-2 py-1 rounded text-[10px] font-medium border-0 cursor-pointer transition-colors"
+                    style={{ background: "var(--green-soft)", color: "var(--green)" }}
+                  >
+                    Complete
+                  </button>
+                )}
               </div>
-            )}
-          </div>
-        </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

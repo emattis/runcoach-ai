@@ -74,7 +74,10 @@ This athlete has a DOCUMENTED PATTERN of injury when ramping mileage AND intensi
 - Push back firmly when the athlete wants to do too much
 - Celebrate consistency over flashy workouts
 - Use specific paces, distances, and HR zones — never vague
-- Acknowledge the athlete's competitive history and ambitions while keeping them healthy`;
+- Acknowledge the athlete's competitive history and ambitions while keeping them healthy
+
+## Athlete Feedback
+Pay close attention to the athlete's free text feedback. These notes contain subjective information about how training feels that numbers alone can't capture. Use this to adjust upcoming workouts — for example, if the athlete reports knee tightness, reduce volume and avoid hills. If they report feeling strong and wanting more, you can be slightly more aggressive with the next week's plan. Always acknowledge their feedback in your coach notes.`;
 
 // ---- Types ----
 
@@ -87,6 +90,8 @@ export interface PlanGenerationContext {
   avgFeelRating: number | null;
   injuryRiskScore: number;
   coachLearnings: string[];
+  recentFeedbackNotes: string[];
+  recentCoachNotes: string[];
   preferences: {
     preferred_long_run_day: string;
     easy_pace_range: string;
@@ -143,30 +148,46 @@ CURRENT STATUS:
 - Current injury risk score: ${ctx.injuryRiskScore}/100
 - Coach learnings about this athlete: ${ctx.coachLearnings.length > 0 ? ctx.coachLearnings.join("; ") : "none yet"}
 - Schedule preferences: long run on ${ctx.preferences.preferred_long_run_day}, off days: ${ctx.preferences.off_days.join(", ")}, easy pace range: ${ctx.preferences.easy_pace_range}/mi
-
+${ctx.recentFeedbackNotes.length > 0 ? `
+RECENT ATHLETE FEEDBACK (last 7 days — pay attention to these):
+${ctx.recentFeedbackNotes.map((n) => `- "${n}"`).join("\n")}
+` : ""}${ctx.recentCoachNotes.length > 0 ? `
+ATHLETE NOTES TO COACH (recent):
+${ctx.recentCoachNotes.map((n) => `- "${n}"`).join("\n")}
+` : ""}
 PHASE-SPECIFIC RULES FOR ${ctx.currentPhase.toUpperCase().replace("_", " ")}:
 ${getPhaseRules(ctx.currentPhase, ctx.preferences.easy_pace_range, isDownWeek)}
 - Never increase weekly mileage more than 10% from last week
 - If injury risk > 60, reduce planned volume by 10-15%
 - If injury risk > 85, prescribe a recovery week regardless of plan
 
+MULTI-SESSION DAYS:
+- Prescribe complementary sessions alongside runs: strength, mobility, yoga, drills
+- During base building: 3 strength sessions + 2 mobility/yoga sessions per week
+- Strength days should align with easy run days (NEVER on long run day or rest day before long run)
+- Mobility/yoga on rest days or after long runs for recovery
+- Mobility routines: hip openers, ankle mobility, thoracic spine, hamstring flexibility
+- Each day can have MULTIPLE workouts in the array (e.g. an easy run + a strength session)
+- workout_type options: easy, long_run, tempo, intervals, recovery, off, cross_train, strides, strength, mobility, yoga, drills
+- For strength/mobility/yoga: distance=0, pace_guidance="", hr_zone=""
+
 Respond with valid JSON in this exact format:
 {
   "workouts": [
     {
       "day": "monday",
-      "workout_type": "off|easy|long_run|tempo|intervals|recovery|cross_train|strides",
+      "workout_type": "off|easy|long_run|tempo|intervals|recovery|cross_train|strides|strength|mobility|yoga|drills",
       "distance": 0,
-      "pace_guidance": "string or empty for off days",
-      "hr_zone": "string or empty for off days",
+      "pace_guidance": "string or empty for non-run sessions",
+      "hr_zone": "string or empty for non-run sessions",
       "description": "short description of the workout",
-      "coach_rationale": "why this workout on this day"
+      "coach_rationale": "why this session on this day"
     }
   ],
   "coach_notes": "2-3 sentence summary of the week's plan, training philosophy, and any cautions. MUST include: remind the athlete to reduce any run if they feel pain or excessive fatigue, and that the coach will adapt future weeks based on feedback."
 }
 
-The workouts array must have exactly 7 entries (Monday through Sunday). Distances must sum to approximately ${ctx.targetMileage} miles. Do NOT prescribe less than ${ctx.targetMileage} total miles unless injury risk is elevated.`;
+The workouts array can have MORE than 7 entries — each day can have multiple sessions (e.g. a run + strength on the same day). Running distances must sum to approximately ${ctx.targetMileage} miles. Do NOT prescribe less than ${ctx.targetMileage} total running miles unless injury risk is elevated.`;
 
   const text = await callGemini(COACH_SYSTEM_PROMPT, userPrompt);
 

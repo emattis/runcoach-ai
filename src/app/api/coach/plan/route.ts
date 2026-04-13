@@ -10,15 +10,31 @@ import type { TrainingPhase } from "@/types";
 
 /**
  * POST /api/coach/plan
- * Generate a new weekly training plan.
+ * Generate a new weekly training plan for the current Monday-Sunday week.
  *
- * Loads athlete profile, computes target mileage based on recent history,
- * calls the AI coach, and saves the plan + workouts to the database.
+ * If a plan already exists for this week, it will be replaced.
+ * Recent activities (including prior days this week) are used as context
+ * but NOT included as planned workouts — the plan covers Mon-Sun.
  */
 export async function POST() {
   const db = createServiceClient();
 
   try {
+    // Determine the target week (current Monday-Sunday)
+    const weekStart = getWeekStart(new Date());
+
+    // Delete any existing plan for this week (allows regeneration)
+    const { data: existingPlans } = await db
+      .from("training_plans")
+      .select("id")
+      .eq("week_start", weekStart);
+
+    if (existingPlans && existingPlans.length > 0) {
+      const planIds = existingPlans.map((p) => p.id);
+      await db.from("planned_workouts").delete().in("plan_id", planIds);
+      await db.from("training_plans").delete().in("id", planIds);
+    }
+
     // 1. Load athlete profile
     const { data: athlete, error: athleteErr } = await db
       .from("athlete_profile")
@@ -33,7 +49,7 @@ export async function POST() {
       );
     }
 
-    // 2. Get last 4 weeks of mileage from activities
+    // 2. Get last 4 weeks of mileage from activities (includes this week's runs as context)
     const fourWeeksAgo = new Date();
     fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
 
@@ -47,10 +63,23 @@ export async function POST() {
     // Bucket into weeks
     const weeklyMileage = computeWeeklyMileage(recentActivities ?? []);
 
-    // Current mileage = most recent week (or 0)
-    const currentMileage = weeklyMileage.length > 0
+    // Last completed week's mileage (not the current partial week)
+    const lastWeekStart = getWeekStart(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+    const lastWeekMileage = weeklyMileage.length > 0
       ? weeklyMileage[weeklyMileage.length - 1]
       : 0;
+
+    // Current (partial) week mileage — for context, not for target calculation
+    const thisWeekActivities = (recentActivities ?? []).filter(
+      (a: { activity_date: string }) => a.activity_date >= weekStart
+    );
+    const thisWeekMileageSoFar = thisWeekActivities.reduce(
+      (sum: number, a: { distance_miles: number | null }) => sum + (a.distance_miles ?? 0),
+      0
+    );
+
+    // Use last completed week for target calculation
+    const currentMileage = lastWeekMileage;
 
     // 3. Determine week number within current phase
     const phaseStart = athlete.phase_start_date
@@ -108,7 +137,40 @@ export async function POST() {
       }
     }
 
-    // 8. Build context and generate plan
+    // 8. Load recent feedback notes and coach notes
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const [feedbackNotesRes, coachNotesRes] = await Promise.all([
+      db.from("run_feedback")
+        .select("notes, feel_rating, soreness_areas, injury_flag")
+        .gte("created_at", sevenDaysAgo)
+        .not("notes", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(10),
+      db.from("coach_notes")
+        .select("note_text, category")
+        .gte("note_date", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0])
+        .order("created_at", { ascending: false })
+        .limit(10),
+    ]);
+
+    const recentFeedbackNotes = (feedbackNotesRes.data ?? [])
+      .filter((f: { notes: string | null }) => f.notes)
+      .map((f: { notes: string; feel_rating: number; injury_flag: boolean }) =>
+        `[feel:${f.feel_rating}/10${f.injury_flag ? ", INJURY FLAG" : ""}] ${f.notes}`
+      );
+
+    const recentCoachNotes = (coachNotesRes.data ?? [])
+      .map((n: { note_text: string; category: string }) => `[${n.category}] ${n.note_text}`);
+
+    // Include this-week context in learnings if athlete already ran
+    if (thisWeekMileageSoFar > 0) {
+      learningStrings.push(
+        `[this_week_context] Athlete has already run ${Math.round(thisWeekMileageSoFar * 10) / 10} miles this week (before this plan starts). Account for this accumulated fatigue when planning the rest of the week.`
+      );
+    }
+
+    // 9. Build context and generate plan
     const preferences = athlete.preferences ?? {
       preferred_long_run_day: "sunday",
       easy_pace_range: "7:30-8:15",
@@ -126,13 +188,14 @@ export async function POST() {
         : null,
       injuryRiskScore,
       coachLearnings: learningStrings,
+      recentFeedbackNotes,
+      recentCoachNotes,
       preferences,
     };
 
     const plan = await generateWeeklyPlan(context);
 
-    // 9. Save training plan to DB
-    const weekStart = getWeekStart(new Date());
+    // 10. Save training plan to DB
 
     const { data: savedPlan, error: planErr } = await db
       .from("training_plans")

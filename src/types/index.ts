@@ -20,7 +20,11 @@ export type WorkoutType =
   | "recovery"
   | "off"
   | "cross_train"
-  | "strides";
+  | "strides"
+  | "strength"
+  | "mobility"
+  | "yoga"
+  | "drills";
 
 export type EnergyLevel = "depleted" | "tired" | "moderate" | "strong" | "great";
 

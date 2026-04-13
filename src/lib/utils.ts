@@ -73,6 +73,10 @@ const WORKOUT_COLORS: Record<WorkoutType, string> = {
   off: "#6b7280",        // gray
   cross_train: "#8b5cf6", // purple
   strides: "#eab308",    // yellow
+  strength: "#f472b6",   // pink
+  mobility: "#14b8a6",   // teal
+  yoga: "#06b6d4",       // cyan
+  drills: "#fb923c",     // light orange
 };
 
 /** Get the display hex color for a workout type */
