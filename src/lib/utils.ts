@@ -62,6 +62,22 @@ export function getWeekStart(date: Date): string {
   return `${y}-${m}-${dd}`;
 }
 
+/**
+ * Get the plan week start — the Monday of the "active" training week.
+ * If today is Sunday, returns NEXT Monday (the upcoming plan week).
+ * Otherwise returns this week's Monday.
+ */
+export function getPlanWeekStart(): string {
+  const now = new Date();
+  if (now.getDay() === 0) {
+    // Sunday: the active plan is for next week
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return getWeekStart(tomorrow);
+  }
+  return getWeekStart(now);
+}
+
 // ---- Workout display ----
 
 const WORKOUT_COLORS: Record<WorkoutType, string> = {

@@ -19,6 +19,8 @@ import type { TrainingPhase } from "@/types";
  * target mileage is prescribed across Mon-Sun.
  */
 export async function POST() {
+  console.log("=== PLAN GENERATION API CALLED ===", new Date().toISOString());
+
   const db = createServiceClient();
 
   console.log("[plan] ===== Step 1: Starting plan generation =====");

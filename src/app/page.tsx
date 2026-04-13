@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { getSupabase } from "@/lib/db";
-import { formatPace, formatDuration, getWeekStart, workoutColor, riskLevel } from "@/lib/utils";
+import { formatPace, formatDuration, getWeekStart, getPlanWeekStart, workoutColor, riskLevel } from "@/lib/utils";
 import { FeedbackModal } from "@/components/dashboard/FeedbackModal";
 import { WorkoutFeedbackModal } from "@/components/ui/WorkoutFeedbackModal";
 import { QuickNoteModal } from "@/components/ui/QuickNoteModal";
@@ -117,16 +117,9 @@ export default function DashboardPage() {
   } | null>(null);
 
   const loadDashboard = useCallback(async () => {
-    // Match the plan's week logic: if Sunday, show next week
-    const now = new Date();
-    const dayOfWeek = now.getDay();
-    let planDate = now;
-    if (dayOfWeek === 0) {
-      planDate = new Date(now);
-      planDate.setDate(planDate.getDate() + 1);
-    }
-    const weekStart = getWeekStart(planDate);
-    const today = now.toISOString().split("T")[0];
+    const weekStart = getPlanWeekStart();
+    const today = new Date().toISOString().split("T")[0];
+    console.log("[dashboard] weekStart:", weekStart, "today:", today);
 
     // Run all queries in parallel
     const [
@@ -301,10 +294,18 @@ export default function DashboardPage() {
   };
 
   const handleGeneratePlan = async () => {
+    console.log("=== CALLING PLAN API ===");
     setGenerating(true);
     try {
-      await fetch("/api/coach/plan", { method: "POST" });
+      const res = await fetch("/api/coach/plan", { method: "POST" });
+      const data = await res.json();
+      console.log("=== API RESPONSE:", res.status, data);
+      if (!res.ok) {
+        console.error("=== PLAN API ERROR:", data.error);
+      }
       await loadDashboard();
+    } catch (err) {
+      console.error("=== API CALL FAILED:", err);
     } finally {
       setGenerating(false);
     }

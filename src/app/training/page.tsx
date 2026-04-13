@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { getSupabase } from "@/lib/db";
-import { getWeekStart, workoutColor } from "@/lib/utils";
+import { getPlanWeekStart, workoutColor } from "@/lib/utils";
 import type { WorkoutType } from "@/types";
 
 // ---- Types ----
@@ -49,7 +49,7 @@ export default function TrainingPage() {
   const [resetting, setResetting] = useState(false);
 
   const today = new Date().toISOString().split("T")[0];
-  const weekStart = getWeekStart(new Date());
+  const weekStart = getPlanWeekStart();
 
   const load = useCallback(async () => {
     const db = getSupabase();
