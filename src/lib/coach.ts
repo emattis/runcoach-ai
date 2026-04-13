@@ -139,16 +139,17 @@ export async function generateWeeklyPlan(
 CRITICAL ATHLETE CONTEXT:
 This athlete has a strong aerobic base (2:47 marathon in Oct 2025, 1:19 half marathon). Even when returning from a short break, starting mileage should be 20-25 mpw, NOT beginner levels. He is resuming training after a 2-week injury break in March 2026. He is NOT a beginner runner.
 
-IMPORTANT — MILEAGE INSTRUCTIONS:
-- Last week's mileage (${ctx.currentMileage} mi) is CONTEXT ONLY — it tells you where the athlete's fitness is
-- THIS WEEK'S TARGET is ${ctx.targetMileage} miles — you MUST prescribe the FULL ${ctx.targetMileage} miles across Monday through Sunday
-- Do NOT subtract last week's mileage from this week's target
-- The plan covers Monday through Sunday only
+MANDATORY MILEAGE TARGET:
+- THIS WEEK'S RUNNING TARGET: EXACTLY ${ctx.targetMileage} miles across Monday through Sunday
+- You MUST prescribe runs that sum to ${ctx.targetMileage} miles total. This is non-negotiable.
+- Prior week mileage (${ctx.currentMileage} mi) is BACKGROUND CONTEXT ONLY — do NOT subtract it
+- Do NOT reduce the target for any reason. The target has already been adjusted for the athlete's situation.
+- The only acceptable total is ${ctx.targetMileage} miles of running (±1 mile).
 
 CURRENT STATUS:
 - Current phase: ${ctx.currentPhase} (week ${ctx.weekNumber})
-- Last completed week's mileage: ${ctx.currentMileage} miles (context only, NOT part of this week)
-- THIS WEEK'S TARGET: ${ctx.targetMileage} miles (prescribe ALL of this across Mon-Sun)${isDownWeek ? " (DOWN WEEK — reduce volume 20-25%)" : ""}
+- Prior week mileage: ${ctx.currentMileage} miles (background context, NOT part of this plan)
+- THIS WEEK: prescribe EXACTLY ${ctx.targetMileage} miles of running across Mon-Sun${isDownWeek ? " (DOWN WEEK)" : ""}
 - Last 4 weeks mileage: [${ctx.last4WeeksMileage.join(", ")}]
 - Average feel rating last week: ${ctx.avgFeelRating ?? "no data"}
 - Current injury risk score: ${ctx.injuryRiskScore}/100
@@ -163,9 +164,7 @@ ${ctx.recentCoachNotes.map((n) => `- "${n}"`).join("\n")}
 ` : ""}
 PHASE-SPECIFIC RULES FOR ${ctx.currentPhase.toUpperCase().replace("_", " ")}:
 ${getPhaseRules(ctx.currentPhase, ctx.preferences.easy_pace_range, isDownWeek)}
-- Never increase weekly mileage more than 10% from last week
-- If injury risk > 60, reduce planned volume by 10-15%
-- If injury risk > 85, prescribe a recovery week regardless of plan
+- The target mileage has already been calculated accounting for safe progression — prescribe it as given
 
 MULTI-SESSION DAYS:
 - Prescribe complementary sessions alongside runs: strength, mobility, yoga, drills
@@ -193,7 +192,7 @@ Respond with valid JSON in this exact format:
   "coach_notes": "2-3 sentence summary of the week's plan, training philosophy, and any cautions. MUST include: remind the athlete to reduce any run if they feel pain or excessive fatigue, and that the coach will adapt future weeks based on feedback."
 }
 
-The workouts array can have MORE than 7 entries — each day can have multiple sessions (e.g. a run + strength on the same day). Running distances must sum to approximately ${ctx.targetMileage} miles. Do NOT prescribe less than ${ctx.targetMileage} total running miles unless injury risk is elevated.`;
+The workouts array can have MORE than 7 entries — each day can have multiple sessions (e.g. a run + strength on the same day). Running distances MUST sum to EXACTLY ${ctx.targetMileage} miles (±1 mile). Do NOT prescribe less. Do NOT reduce the target.`;
 
   const text = await callGemini(COACH_SYSTEM_PROMPT, userPrompt);
 

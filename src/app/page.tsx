@@ -117,8 +117,16 @@ export default function DashboardPage() {
   } | null>(null);
 
   const loadDashboard = useCallback(async () => {
-    const weekStart = getWeekStart(new Date());
-    const today = new Date().toISOString().split("T")[0];
+    // Match the plan's week logic: if Sunday, show next week
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    let planDate = now;
+    if (dayOfWeek === 0) {
+      planDate = new Date(now);
+      planDate.setDate(planDate.getDate() + 1);
+    }
+    const weekStart = getWeekStart(planDate);
+    const today = now.toISOString().split("T")[0];
 
     // Run all queries in parallel
     const [
