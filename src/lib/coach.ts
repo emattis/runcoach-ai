@@ -139,10 +139,16 @@ export async function generateWeeklyPlan(
 CRITICAL ATHLETE CONTEXT:
 This athlete has a strong aerobic base (2:47 marathon in Oct 2025, 1:19 half marathon). Even when returning from a short break, starting mileage should be 20-25 mpw, NOT beginner levels. He is resuming training after a 2-week injury break in March 2026. He is NOT a beginner runner.
 
+IMPORTANT — MILEAGE INSTRUCTIONS:
+- Last week's mileage (${ctx.currentMileage} mi) is CONTEXT ONLY — it tells you where the athlete's fitness is
+- THIS WEEK'S TARGET is ${ctx.targetMileage} miles — you MUST prescribe the FULL ${ctx.targetMileage} miles across Monday through Sunday
+- Do NOT subtract last week's mileage from this week's target
+- The plan covers Monday through Sunday only
+
 CURRENT STATUS:
 - Current phase: ${ctx.currentPhase} (week ${ctx.weekNumber})
-- Last week's mileage: ${ctx.currentMileage} miles
-- Target mileage this week: ${ctx.targetMileage} miles${isDownWeek ? " (DOWN WEEK — reduce volume 20-25%)" : ""}
+- Last completed week's mileage: ${ctx.currentMileage} miles (context only, NOT part of this week)
+- THIS WEEK'S TARGET: ${ctx.targetMileage} miles (prescribe ALL of this across Mon-Sun)${isDownWeek ? " (DOWN WEEK — reduce volume 20-25%)" : ""}
 - Last 4 weeks mileage: [${ctx.last4WeeksMileage.join(", ")}]
 - Average feel rating last week: ${ctx.avgFeelRating ?? "no data"}
 - Current injury risk score: ${ctx.injuryRiskScore}/100

@@ -10,18 +10,36 @@ import type { TrainingPhase } from "@/types";
 
 /**
  * POST /api/coach/plan
- * Generate a new weekly training plan for the current Monday-Sunday week.
+ * Generate a new weekly training plan for the upcoming Monday-Sunday week.
  *
- * If a plan already exists for this week, it will be replaced.
- * Recent activities (including prior days this week) are used as context
- * but NOT included as planned workouts — the plan covers Mon-Sun.
+ * If today is Mon-Sat, plans for this week's Monday.
+ * If today is Sunday, plans for NEXT Monday (since this week is done).
+ *
+ * Activities from before the plan week are context only — the full
+ * target mileage is prescribed across Mon-Sun of the plan week.
  */
 export async function POST() {
   const db = createServiceClient();
 
   try {
-    // Determine the target week (current Monday-Sunday)
-    const weekStart = getWeekStart(new Date());
+    // Determine the target plan week
+    // If today is Sunday, generate for NEXT week (tomorrow's Monday)
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0=Sun
+    let planDate = now;
+    if (dayOfWeek === 0) {
+      // Sunday: plan for tomorrow (next Monday)
+      planDate = new Date(now);
+      planDate.setDate(planDate.getDate() + 1);
+    }
+    const weekStart = getWeekStart(planDate);
+
+    // Compute the end of the plan week (Sunday)
+    const weekEndDate = new Date(weekStart + "T00:00:00");
+    weekEndDate.setDate(weekEndDate.getDate() + 6);
+    const weekEnd = weekEndDate.toISOString().split("T")[0];
+
+    console.log(`[plan] Generating plan for week ${weekStart} to ${weekEnd}`);
 
     // Delete any existing plan for this week (allows regeneration)
     const { data: existingPlans } = await db
@@ -49,37 +67,38 @@ export async function POST() {
       );
     }
 
-    // 2. Get last 4 weeks of mileage from activities (includes this week's runs as context)
-    const fourWeeksAgo = new Date();
-    fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+    // 2. Get historical mileage (everything BEFORE the plan week — context only)
+    const fiveWeeksBeforePlan = new Date(weekStart + "T00:00:00");
+    fiveWeeksBeforePlan.setDate(fiveWeeksBeforePlan.getDate() - 35);
 
-    const { data: recentActivities } = await db
+    const { data: priorActivities } = await db
       .from("activities")
       .select("activity_date, distance_miles")
-      .gte("activity_date", fourWeeksAgo.toISOString().split("T")[0])
+      .gte("activity_date", fiveWeeksBeforePlan.toISOString().split("T")[0])
+      .lt("activity_date", weekStart) // STRICTLY before plan week
       .eq("activity_type", "run")
       .order("activity_date", { ascending: true });
 
-    // Bucket into weeks
-    const weeklyMileage = computeWeeklyMileage(recentActivities ?? []);
+    // Bucket prior activities into weekly mileage
+    const weeklyMileage = computeWeeklyMileage(priorActivities ?? []);
 
-    // Last completed week's mileage (not the current partial week)
-    const lastWeekStart = getWeekStart(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
-    const lastWeekMileage = weeklyMileage.length > 0
+    // Most recent completed week's mileage (for target calculation)
+    const lastCompletedWeekMileage = weeklyMileage.length > 0
       ? weeklyMileage[weeklyMileage.length - 1]
       : 0;
 
-    // Current (partial) week mileage — for context, not for target calculation
-    const thisWeekActivities = (recentActivities ?? []).filter(
-      (a: { activity_date: string }) => a.activity_date >= weekStart
+    // Summarize the week just before the plan for the AI prompt
+    const priorWeekStart = getWeekStart(new Date(new Date(weekStart + "T00:00:00").getTime() - 7 * 24 * 60 * 60 * 1000));
+    const priorWeekActivities = (priorActivities ?? []).filter(
+      (a: { activity_date: string }) => a.activity_date >= priorWeekStart
     );
-    const thisWeekMileageSoFar = thisWeekActivities.reduce(
+    const priorWeekMileage = priorWeekActivities.reduce(
       (sum: number, a: { distance_miles: number | null }) => sum + (a.distance_miles ?? 0),
       0
     );
 
     // Use last completed week for target calculation
-    const currentMileage = lastWeekMileage;
+    const currentMileage = lastCompletedWeekMileage;
 
     // 3. Determine week number within current phase
     const phaseStart = athlete.phase_start_date
@@ -163,10 +182,10 @@ export async function POST() {
     const recentCoachNotes = (coachNotesRes.data ?? [])
       .map((n: { note_text: string; category: string }) => `[${n.category}] ${n.note_text}`);
 
-    // Include this-week context in learnings if athlete already ran
-    if (thisWeekMileageSoFar > 0) {
+    // Add prior week context for the AI
+    if (priorWeekMileage > 0) {
       learningStrings.push(
-        `[this_week_context] Athlete has already run ${Math.round(thisWeekMileageSoFar * 10) / 10} miles this week (before this plan starts). Account for this accumulated fatigue when planning the rest of the week.`
+        `[prior_week_context] Last week the athlete ran ${Math.round(priorWeekMileage * 10) / 10} miles total. This is context only — the plan should prescribe the FULL target mileage for this week.`
       );
     }
 
