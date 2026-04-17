@@ -653,69 +653,90 @@ function StatCard({
 // ---- Component: RiskGauge ----
 
 // ---- Gauge SVG helper ----
+// Semicircle: 0% at left (180deg), 100% at right (0deg)
+// SVG coordinate system: 0deg = right, angles go clockwise
+// So our arc goes from 180deg (left) to 0deg (right), sweeping upward
+
+function gaugePoint(cx: number, cy: number, r: number, pct: number) {
+  // pct 0 → 180deg (left), pct 100 → 0deg (right)
+  // Interpolate angle from PI (180deg) to 0 (0deg)
+  const angle = Math.PI * (1 - pct / 100);
+  return {
+    x: cx + r * Math.cos(angle),
+    y: cy - r * Math.sin(angle), // minus because SVG Y is inverted
+  };
+}
 
 function gaugeArc(cx: number, cy: number, r: number, startPct: number, endPct: number): string {
-  // Convert percentage (0-100) to angle: 0% = -90deg (left), 100% = +90deg (right)
-  const startAngle = ((startPct / 100) * 180 - 90) * (Math.PI / 180);
-  const endAngle = ((endPct / 100) * 180 - 90) * (Math.PI / 180);
-  const x1 = cx + r * Math.cos(startAngle);
-  const y1 = cy + r * Math.sin(startAngle);
-  const x2 = cx + r * Math.cos(endAngle);
-  const y2 = cy + r * Math.sin(endAngle);
-  const largeArc = endPct - startPct > 50 ? 1 : 0;
-  return `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`;
+  const p1 = gaugePoint(cx, cy, r, startPct);
+  const p2 = gaugePoint(cx, cy, r, endPct);
+  const largeArc = (endPct - startPct) > 50 ? 1 : 0;
+  // sweep-flag 1 = clockwise (left to right in our orientation)
+  return `M ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} A ${r} ${r} 0 ${largeArc} 1 ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
 }
 
 function GaugeSVG({ score, color }: { score: number; color: string }) {
-  const cx = 60, cy = 55, r = 45;
-  // Needle angle: score 0 → -90deg (left), score 100 → +90deg (right)
-  const needleAngle = ((score / 100) * 180 - 90) * (Math.PI / 180);
-  const needleLen = 38;
-  const nx = cx + needleLen * Math.cos(needleAngle);
-  const ny = cy + needleLen * Math.sin(needleAngle);
+  const cx = 60, cy = 58, r = 44;
+  const needleLen = 36;
+  const needle = gaugePoint(cx, cy, needleLen, score);
 
   const zones = [
-    { start: 0, end: 30, color: "var(--green)" },
-    { start: 30, end: 50, color: "var(--yellow)" },
-    { start: 50, end: 70, color: "var(--orange)" },
-    { start: 70, end: 100, color: "var(--red)" },
+    { start: 0, end: 30, stroke: "var(--green)" },
+    { start: 30, end: 50, stroke: "var(--yellow)" },
+    { start: 50, end: 70, stroke: "var(--orange)" },
+    { start: 70, end: 100, stroke: "var(--red)" },
   ];
 
   return (
-    <svg viewBox="0 0 120 65" width="140" height="76">
+    <svg viewBox="0 0 120 68" width="150" height="85">
       {/* Background track */}
       <path
         d={gaugeArc(cx, cy, r, 0, 100)}
         fill="none"
         stroke="var(--bg-elevated)"
-        strokeWidth="8"
-        strokeLinecap="round"
+        strokeWidth="10"
+        strokeLinecap="butt"
       />
-      {/* Color zones */}
+      {/* Color zone arcs — always visible, seamless */}
       {zones.map((z, i) => (
         <path
           key={i}
           d={gaugeArc(cx, cy, r, z.start, z.end)}
           fill="none"
-          stroke={z.color}
-          strokeWidth="8"
-          strokeLinecap={i === 0 || i === zones.length - 1 ? "round" : "butt"}
-          opacity="0.5"
+          stroke={z.stroke}
+          strokeWidth="10"
+          strokeLinecap="butt"
+          opacity="0.55"
         />
       ))}
+      {/* Round caps on first and last only (overlaid) */}
+      <circle
+        cx={gaugePoint(cx, cy, r, 0).x}
+        cy={gaugePoint(cx, cy, r, 0).y}
+        r="5"
+        fill="var(--green)"
+        opacity="0.55"
+      />
+      <circle
+        cx={gaugePoint(cx, cy, r, 100).x}
+        cy={gaugePoint(cx, cy, r, 100).y}
+        r="5"
+        fill="var(--red)"
+        opacity="0.55"
+      />
       {/* Needle */}
       <line
         x1={cx}
         y1={cy}
-        x2={nx}
-        y2={ny}
+        x2={needle.x}
+        y2={needle.y}
         stroke={color}
         strokeWidth="2.5"
         strokeLinecap="round"
       />
-      {/* Center dot */}
-      <circle cx={cx} cy={cy} r="4" fill={color} />
-      <circle cx={cx} cy={cy} r="2" fill="var(--bg-card)" />
+      {/* Pivot circle */}
+      <circle cx={cx} cy={cy} r="5" fill={color} />
+      <circle cx={cx} cy={cy} r="2.5" fill="var(--bg-card)" />
     </svg>
   );
 }
