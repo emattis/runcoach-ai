@@ -652,6 +652,74 @@ function StatCard({
 
 // ---- Component: RiskGauge ----
 
+// ---- Gauge SVG helper ----
+
+function gaugeArc(cx: number, cy: number, r: number, startPct: number, endPct: number): string {
+  // Convert percentage (0-100) to angle: 0% = -90deg (left), 100% = +90deg (right)
+  const startAngle = ((startPct / 100) * 180 - 90) * (Math.PI / 180);
+  const endAngle = ((endPct / 100) * 180 - 90) * (Math.PI / 180);
+  const x1 = cx + r * Math.cos(startAngle);
+  const y1 = cy + r * Math.sin(startAngle);
+  const x2 = cx + r * Math.cos(endAngle);
+  const y2 = cy + r * Math.sin(endAngle);
+  const largeArc = endPct - startPct > 50 ? 1 : 0;
+  return `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`;
+}
+
+function GaugeSVG({ score, color }: { score: number; color: string }) {
+  const cx = 60, cy = 55, r = 45;
+  // Needle angle: score 0 → -90deg (left), score 100 → +90deg (right)
+  const needleAngle = ((score / 100) * 180 - 90) * (Math.PI / 180);
+  const needleLen = 38;
+  const nx = cx + needleLen * Math.cos(needleAngle);
+  const ny = cy + needleLen * Math.sin(needleAngle);
+
+  const zones = [
+    { start: 0, end: 30, color: "var(--green)" },
+    { start: 30, end: 50, color: "var(--yellow)" },
+    { start: 50, end: 70, color: "var(--orange)" },
+    { start: 70, end: 100, color: "var(--red)" },
+  ];
+
+  return (
+    <svg viewBox="0 0 120 65" width="140" height="76">
+      {/* Background track */}
+      <path
+        d={gaugeArc(cx, cy, r, 0, 100)}
+        fill="none"
+        stroke="var(--bg-elevated)"
+        strokeWidth="8"
+        strokeLinecap="round"
+      />
+      {/* Color zones */}
+      {zones.map((z, i) => (
+        <path
+          key={i}
+          d={gaugeArc(cx, cy, r, z.start, z.end)}
+          fill="none"
+          stroke={z.color}
+          strokeWidth="8"
+          strokeLinecap={i === 0 || i === zones.length - 1 ? "round" : "butt"}
+          opacity="0.5"
+        />
+      ))}
+      {/* Needle */}
+      <line
+        x1={cx}
+        y1={cy}
+        x2={nx}
+        y2={ny}
+        stroke={color}
+        strokeWidth="2.5"
+        strokeLinecap="round"
+      />
+      {/* Center dot */}
+      <circle cx={cx} cy={cy} r="4" fill={color} />
+      <circle cx={cx} cy={cy} r="2" fill="var(--bg-card)" />
+    </svg>
+  );
+}
+
 function RiskGauge({
   score,
   factors,
@@ -663,12 +731,6 @@ function RiskGauge({
 }) {
   const [expanded, setExpanded] = useState(false);
   const risk = riskLevel(score);
-  // Semicircle gauge: angle from -90 to 90 degrees
-  const angle = -90 + (score / 100) * 180;
-  const rad = (angle * Math.PI) / 180;
-  // Needle endpoint (radius 35, centered at 50,50)
-  const nx = 50 + 35 * Math.cos(rad);
-  const ny = 50 + 35 * Math.sin(rad);
 
   return (
     <div
@@ -682,62 +744,8 @@ function RiskGauge({
         Injury Risk
       </div>
       <div className="flex flex-col items-center">
-        <svg viewBox="0 0 100 58" width="120" height="70">
-          {/* Background arc */}
-          <path
-            d="M 10 50 A 40 40 0 0 1 90 50"
-            fill="none"
-            stroke="var(--bg-elevated)"
-            strokeWidth="6"
-            strokeLinecap="round"
-          />
-          {/* Green zone 0-30 */}
-          <path
-            d="M 10 50 A 40 40 0 0 1 23.18 18.04"
-            fill="none"
-            stroke="var(--green)"
-            strokeWidth="6"
-            strokeLinecap="round"
-            opacity="0.4"
-          />
-          {/* Yellow zone 30-50 */}
-          <path
-            d="M 23.18 18.04 A 40 40 0 0 1 40.6 11.34"
-            fill="none"
-            stroke="var(--yellow)"
-            strokeWidth="6"
-            opacity="0.4"
-          />
-          {/* Orange zone 50-70 */}
-          <path
-            d="M 40.6 11.34 A 40 40 0 0 1 59.4 11.34"
-            fill="none"
-            stroke="var(--orange)"
-            strokeWidth="6"
-            opacity="0.4"
-          />
-          {/* Red zone 70-100 */}
-          <path
-            d="M 59.4 11.34 A 40 40 0 0 1 90 50"
-            fill="none"
-            stroke="var(--red)"
-            strokeWidth="6"
-            strokeLinecap="round"
-            opacity="0.4"
-          />
-          {/* Needle */}
-          <line
-            x1="50"
-            y1="50"
-            x2={nx}
-            y2={ny}
-            stroke={risk.color}
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-          <circle cx="50" cy="50" r="3" fill={risk.color} />
-        </svg>
-        <div className="flex items-center gap-2 mt-1">
+        <GaugeSVG score={score} color={risk.color} />
+        <div className="flex items-center gap-2 mt-2">
           <span
             className="text-2xl font-semibold"
             style={{ fontFamily: "var(--font-mono)", color: risk.color }}
