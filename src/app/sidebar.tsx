@@ -31,6 +31,17 @@ const NAV_ITEMS = [
     ),
   },
   {
+    label: "Activity Log",
+    href: "/activity",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 3h5M2 7h10M2 11h8M2 15h12" />
+        <path d="M15 3v12" />
+        <path d="M13 5l2-2 2 2" />
+      </svg>
+    ),
+  },
+  {
     label: "Strength",
     href: "/strength",
     icon: (
